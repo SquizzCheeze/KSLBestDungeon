@@ -19,6 +19,14 @@ Added:
   are greyed out with the reason instead of failing with a game error, and the
   confirmation says "Sent to Party" rather than "Sent to PARTY".
 
+- A score key along the bottom of the list: what each tier is worth (Best in
+  Slot 100, Catalyst 100, Must have 50, Nice to have 10, Transmog 1). Hovering a
+  dungeon now shows how its score was worked out, tier by tier.
+
+- Tiers are shown with KeystoneLoot's own tier icons everywhere: in the corner
+  of each item, in each dungeon's summary, in the score key and in tooltips. The
+  summary used to be coloured text in a colour scheme of its own.
+
 - Defaults button, which puts the ranking options back without reloading your
   interface. /kslbd reset still wipes everything and reloads.
 
@@ -32,6 +40,17 @@ Added:
   its own version.
 
 Changed:
+
+- With "All specs" on, an item favorited on several specs now counts once, at
+  the best tier any spec gave it. It used to count once per spec -- a trinket
+  marked Best in Slot on three specs added 300 to its dungeon instead of 100 --
+  and its icon appeared once per spec as well. Rankings may shift for characters
+  with favorites shared across specs.
+
+- Catalyst favorites now count as much as Best in Slot (100, up from 5).
+  KeystoneLoot only allows Catalyst on the five tier-set slots, so a Catalyst
+  favorite is a drop you mean to turn into a set piece, and it ranked below even
+  Nice to have. Dungeons with Catalyst favorites will move up the list.
 
 - Declares support for patch 12.1.5 alongside 12.1.0, so it loads on the
   12.1.5 client without being marked out of date.
@@ -60,6 +79,15 @@ Fixed:
 - Dungeons with more than about eight favorites had their last icons, and the
   "+N more" label, cut off by the edge of the window. Icons now wrap onto a
   second line so every favorite is shown.
+
+- Item icons had no border at all. They were meant to have a border coloured by
+  tier, but it did not draw on the current game version, and it replaced
+  KeystoneLoot's own quality border. Items have their quality border back.
+
+- The tier icon in the corner of an item showed the tier for whichever spec was
+  selected in KeystoneLoot, not the tier it was favorited at, so it could
+  disagree with the score when "All specs" is on. It now always shows the
+  favorited tier.
 
 - Long dungeon names ran underneath the item icons. They are now shortened with
   "..." and shown in full when you hover the row.

@@ -16,13 +16,38 @@ local TIER_NAME = {
     [TIER_CATALYST] = "Catalyst",
 };
 
-local TIER_COLOR = {
-    [TIER_BIS] = "|cff00ff00",
-    [TIER_MUST] = "|cffffff00",
-    [TIER_NICE] = "|cff00ffff",
-    [TIER_TRANSMOG] = "|cff808080",
-    [TIER_CATALYST] = "|cffa335ee",
+-- KeystoneLoot's own tier icons (its Favorites.TIER_TEXTURE, which is on KSL's private
+-- table, so the paths are repeated here). Tiers are shown ONLY with these, everywhere:
+-- the corner of each item icon, the row summary, the score key and the tooltips. One
+-- visual language, and the same one players already know from KeystoneLoot.
+local TIER_TEXTURE = {
+    [TIER_NICE] = "Interface\\AddOns\\KeystoneLoot\\assets\\tier_nice",
+    [TIER_MUST] = "Interface\\AddOns\\KeystoneLoot\\assets\\tier_must",
+    [TIER_BIS] = "Interface\\AddOns\\KeystoneLoot\\assets\\tier_bis",
+    [TIER_TRANSMOG] = "Interface\\AddOns\\KeystoneLoot\\assets\\tier_transmog",
+    [TIER_CATALYST] = "Interface\\AddOns\\KeystoneLoot\\assets\\tier_catalyst",
 };
+
+-- Display order: by score weight, highest first. Differs from KeystoneLoot's own
+-- TIER_ORDER (which puts Catalyst after Nice) because Catalyst weighs the same as
+-- BiS here, and the score key should read from most to least valuable.
+local TIER_ORDER = { TIER_BIS, TIER_CATALYST, TIER_MUST, TIER_NICE, TIER_TRANSMOG };
+
+local TIER_SHORT_NAME = {
+    [TIER_NICE] = "Nice",
+    [TIER_MUST] = "Must",
+    [TIER_BIS] = "BiS",
+    [TIER_TRANSMOG] = "Transmog",
+    [TIER_CATALYST] = "Catalyst",
+};
+
+-- Inline tier icon for FontStrings and tooltips.
+local function TierIcon(tier, size)
+    local texture = TIER_TEXTURE[tier];
+    if (not texture) then return ""; end
+    size = size or 14;
+    return string.format("|T%s:%d:%d|t", texture, size, size);
+end
 
 -- StaticPopup for whisper target
 StaticPopupDialogs["KSLBESTDUNGEON_WHISPER_TARGET"] = {
@@ -313,7 +338,7 @@ function KSLBestDungeonRankingsFrameMixin:CreateToolbar()
     end);
     AddTooltip(weight, "Weight by tier",
         "Make better favorites count for more in the score:\n"
-        .. "Best in Slot 100, Must have 50, Nice to have 10, Catalyst 5, Transmog 1.\n\n"
+        .. "Best in Slot 100, Catalyst 100, Must have 50, Nice to have 10, Transmog 1.\n\n"
         .. "Untick to count every favorite as 1.");
     toolbar.Weight = weight;
 
@@ -335,9 +360,64 @@ function KSLBestDungeonRankingsFrameMixin:CreateToolbar()
     toolbar.MinFavorites = minFavs;
 end
 
+-- ============================================================
+-- Score key
+--
+-- A strip along the bottom of the list saying what the score is made of, in the same
+-- tier icons the rows and item icons use. Built from Init(); the scroll frame stops
+-- 26px above the inset's bottom to leave room for it.
+-- ============================================================
+function KSLBestDungeonRankingsFrameMixin:CreateScoreKey()
+    local key = CreateFrame("Frame", nil, self);
+    key:SetPoint("BOTTOMLEFT", self.Inset, "BOTTOMLEFT", 6, 4);
+    key:SetPoint("BOTTOMRIGHT", self.Inset, "BOTTOMRIGHT", -6, 4);
+    key:SetHeight(20);
+    key:EnableMouse(true);
+
+    local divider = key:CreateTexture(nil, "ARTWORK");
+    divider:SetColorTexture(1, 1, 1, 0.1);
+    divider:SetPoint("TOPLEFT", 0, 1);
+    divider:SetPoint("TOPRIGHT", 0, 1);
+    divider:SetHeight(1);
+
+    key.Text = key:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall");
+    key.Text:SetPoint("LEFT", 2, -1);
+    key.Text:SetPoint("RIGHT", -2, -1);
+    key.Text:SetJustifyH("LEFT");
+    key.Text:SetWordWrap(false);
+
+    AddTooltip(key, "Score",
+        "Each dungeon's score adds up its favorites, weighted by the tier you gave them "
+        .. "in KeystoneLoot, so one Best in Slot item outranks several Nice to have ones.\n\n"
+        .. "Untick \"Weight by tier\" to count every favorite as 1.\n\n"
+        .. "Hover a dungeon to see how its score was worked out.");
+    self.ScoreKey = key;
+end
+
+function KSLBestDungeonRankingsFrameMixin:UpdateScoreKey()
+    local key = self.ScoreKey;
+    if (not key) then return; end
+
+    local weighted = Addon:GetSetting("weightByTier");
+    local parts = {};
+    for _, tier in ipairs(TIER_ORDER) do
+        if (weighted) then
+            table.insert(parts, string.format("%s %s %d", TierIcon(tier), TIER_SHORT_NAME[tier],
+                Addon:GetTierWeight(tier, true)));
+        else
+            table.insert(parts, TierIcon(tier) .. " " .. TIER_SHORT_NAME[tier]);
+        end
+    end
+
+    local prefix = weighted and "|cffffd100Score:|r  " or "|cffffd100Score:|r every favorite = 1  ";
+    key.Text:SetText(prefix .. table.concat(parts, "   "));
+end
+
 -- Bring the toolbar in line with the current settings and KSL selection. Called from
 -- every Refresh(), which also covers Defaults and character/spec changes in KSL.
 function KSLBestDungeonRankingsFrameMixin:UpdateToolbar()
+    self:UpdateScoreKey();
+
     local toolbar = self.Toolbar;
     if (not toolbar) then return; end
 
@@ -406,6 +486,7 @@ function KSLBestDungeonRankingsFrameMixin:Init()
     self:SetScript("OnHide", self.OnHide);
 
     self:CreateToolbar();
+    self:CreateScoreKey();
 
     self.lastFavoritesHash = nil;
     self:StartPolling();
@@ -590,6 +671,21 @@ end
 -- ============================================================
 local KSL_ICON_BUTTON_TEMPLATE = "KeystoneLootLootIconButtonTemplate";
 
+-- Stands in for KSL's UpdateFavoriteIcon on our icon buttons (see Entry Init).
+local function ShowFavoritedTier(button)
+    local icon = button.Content and button.Content.FavoriteIcon;
+    if (not icon) then return; end
+
+    local texture = TIER_TEXTURE[button.favoritedTier];
+    if (texture) then
+        icon:SetTexture(texture);
+        icon:SetDesaturated(false);
+        icon:Show();
+    else
+        icon:Hide();
+    end
+end
+
 -- ============================================================
 -- Entry Template Mixin
 -- ============================================================
@@ -639,20 +735,47 @@ function KSLBestDungeonEntryMixin:OnLoad()
 
     self.iconFrames = {};
 
-    self:SetScript("OnEnter", function(self)
-        if (self.dungeonData and #self.dungeonData.items > 0) then
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT");
-            GameTooltip:AddLine(self.dungeonData.dungeon.name, 1, 1, 1);
-            GameTooltip:AddLine(" ");
-            -- Names only. Hover an icon for the full tooltip at the selected item level.
-            for _, item in ipairs(self.dungeonData.items) do
-                local name = C_Item.GetItemInfo(item.itemId);
-                local tierName = TIER_NAME[item.tier] or "Unknown";
-                local tierColor = TIER_COLOR[item.tier] or "|cffffffff";
-                GameTooltip:AddDoubleLine(name or ("Item " .. item.itemId), tierColor .. tierName .. "|r");
+    self:SetScript("OnEnter", function(row)
+        local data = row.dungeonData;
+        if (not data or #data.items == 0) then return; end
+
+        GameTooltip:SetOwner(row, "ANCHOR_RIGHT");
+        GameTooltip:AddLine(data.dungeon.name, 1, 1, 1);
+
+        -- The score's working, so the number on the row means something.
+        local weighted = Addon:GetSetting("weightByTier");
+        local counts = data.tiers or {};
+        GameTooltip:AddLine(" ");
+        GameTooltip:AddLine(weighted and "Score, weighted by tier:" or "Score, every favorite counting 1:", 1, 0.82, 0);
+        for _, tier in ipairs(TIER_ORDER) do
+            local count = counts[tier] or 0;
+            if (count > 0) then
+                local weight = Addon:GetTierWeight(tier, weighted);
+                GameTooltip:AddDoubleLine(
+                    string.format("%s %d %s", TierIcon(tier), count, TIER_NAME[tier]),
+                    string.format("x %d = %d", weight, count * weight),
+                    0.9, 0.9, 0.9, 0.9, 0.9, 0.9);
             end
-            GameTooltip:Show();
         end
+        -- Tiers KeystoneLoot added after this was written still count, at 1 each.
+        local unknown = 0;
+        for tier, count in pairs(counts) do
+            if (not TIER_TEXTURE[tier]) then unknown = unknown + count; end
+        end
+        if (unknown > 0) then
+            GameTooltip:AddDoubleLine(string.format("%d other", unknown), string.format("x 1 = %d", unknown),
+                0.9, 0.9, 0.9, 0.9, 0.9, 0.9);
+        end
+        GameTooltip:AddDoubleLine("Score", string.format("%.0f", data.stats.score), 1, 1, 1, 1, 1, 1);
+
+        -- Names only. Hover an icon for the full tooltip at the selected item level.
+        GameTooltip:AddLine(" ");
+        for _, item in ipairs(data.items) do
+            local name = C_Item.GetItemInfo(item.itemId);
+            GameTooltip:AddDoubleLine(TierIcon(item.tier) .. " " .. (name or ("Item " .. item.itemId)),
+                TIER_NAME[item.tier] or "Other", 1, 1, 1, 0.7, 0.7, 0.7);
+        end
+        GameTooltip:Show();
     end);
 
     self:SetScript("OnLeave", function(self)
@@ -669,23 +792,16 @@ function KSLBestDungeonEntryMixin:Init(rank, dungeonData, rowWidth)
     local scoreText = string.format("Score: %.0f  |  Items: %d", dungeonData.stats.score, dungeonData.stats.totalItems);
     self.ScoreText:SetText(scoreText);
 
+    -- "[icon] 5 BiS  [icon] 3 Must", best tier first, in KeystoneLoot's tier icons.
     local tierParts = {};
-    if (dungeonData.stats.bisCount > 0) then
-        table.insert(tierParts, string.format("%s%d BiS|r", TIER_COLOR[TIER_BIS], dungeonData.stats.bisCount));
+    local counts = dungeonData.tiers or {};
+    for _, tier in ipairs(TIER_ORDER) do
+        local count = counts[tier] or 0;
+        if (count > 0) then
+            table.insert(tierParts, string.format("%s%d %s", TierIcon(tier, 12), count, TIER_SHORT_NAME[tier]));
+        end
     end
-    if (dungeonData.stats.mustCount > 0) then
-        table.insert(tierParts, string.format("%s%d Must|r", TIER_COLOR[TIER_MUST], dungeonData.stats.mustCount));
-    end
-    if (dungeonData.stats.niceCount > 0) then
-        table.insert(tierParts, string.format("%s%d Nice|r", TIER_COLOR[TIER_NICE], dungeonData.stats.niceCount));
-    end
-    if (dungeonData.stats.catalystCount > 0) then
-        table.insert(tierParts, string.format("%s%d Cata|r", TIER_COLOR[TIER_CATALYST], dungeonData.stats.catalystCount));
-    end
-    if (dungeonData.stats.transmogCount > 0) then
-        table.insert(tierParts, string.format("%s%d TMog|r", TIER_COLOR[TIER_TRANSMOG], dungeonData.stats.transmogCount));
-    end
-    self.TierText:SetText(table.concat(tierParts, "   "));
+    self.TierText:SetText(table.concat(tierParts, "  "));
 
     -- Item icons, wrapped onto as many lines as they need.
     local container = self.IconContainer;
@@ -713,22 +829,18 @@ function KSLBestDungeonEntryMixin:Init(rank, dungeonData, rowWidth)
         iconFrame.Content.Icon:SetDesaturated(false);
         iconFrame:SetAlpha(1);
 
-        -- KSL marks the tier with a corner icon, but only for the spec currently
-        -- filtered in KSL. This list can span specs (showAllSpecs), so keep our own
-        -- tier-coloured border, which reflects the tier the item was favorited at.
-        iconFrame.Content.IconBorder:Hide();
-        iconFrame.TierBorder = iconFrame:CreateTexture(nil, "OVERLAY");
-        iconFrame.TierBorder:SetAllPoints();
-        local tier = item.tier;
-        if (tier == TIER_BIS) then
-            iconFrame.TierBorder:SetAtlas("loottoast-itemborder-legendary");
-        elseif (tier == TIER_MUST) then
-            iconFrame.TierBorder:SetAtlas("loottoast-itemborder-epic");
-        elseif (tier == TIER_NICE) then
-            iconFrame.TierBorder:SetAtlas("loottoast-itemborder-rare");
-        else
-            iconFrame.TierBorder:SetAtlas("loottoast-itemborder-uncommon");
-        end
+        -- KSL's corner tier icon shows the tier for the spec currently filtered in
+        -- KSL, and KSL redraws it on every hover (OnEnter/OnLeave call
+        -- UpdateFavoriteIcon). This list can span specs (All specs), so replace the
+        -- method on this button instance to always show the tier the item was
+        -- favorited at -- the tier its score counted.
+        --
+        -- This used to hide KSL's quality border and add a tier-coloured one from the
+        -- loottoast-itemborder-* atlases instead. Those atlases do not draw on 12.x, so
+        -- icons showed no border at all; KSL's own quality border stays now.
+        iconFrame.favoritedTier = item.tier;
+        iconFrame.UpdateFavoriteIcon = ShowFavoritedTier;
+        iconFrame:UpdateFavoriteIcon();
 
         iconFrame:Show();
         table.insert(self.iconFrames, iconFrame);

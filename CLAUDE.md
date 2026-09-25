@@ -139,7 +139,9 @@ checkboxes and dropdown texts from settings, so anything that changes settings o
 ```
 KeystoneLootDB.favorites[characterKey][sourceId][specId][itemId] = { tier, bonusIds, gems, enchant }
   → GetAllFavorites()      groups by challengeModeId, resolves names via C_ChallengeMode.GetMapUIInfo
-  → CalculateDungeonScore() sums TIER_WEIGHT (BiS 100 / Must 50 / Nice 10 / Transmog 1)
+                           and de-duplicates by itemId: an item favorited on several specs counts
+                           ONCE, at its highest TIER_RANK (BiS > Catalyst > Must > Nice > Transmog)
+  → CalculateDungeonScore() sums TIER_WEIGHT (BiS 100 / Catalyst 100 / Must 50 / Nice 10 / Transmog 1)
   → Addon:GetRankedDungeons() filters by minFavorites, sorts by settings.sortBy
   → RankingsFrameMixin:Refresh() rebuilds the list
 ```
@@ -151,7 +153,8 @@ automatically.
 
 Tier constants (`TIER_NICE=1, TIER_MUST=2, TIER_BIS=3, TIER_TRANSMOG=4, TIER_CATALYST=5`) mirror
 KeystoneLoot's (`../KeystoneLoot/modules/favorites.lua`) and are **duplicated** in both
-`KSLBestDungeon.lua` and `ui/main_frame.lua`. Change both together. KSL adds tiers between releases,
+`KSLBestDungeon.lua` and `ui/main_frame.lua`. Change both together. The weights are NOT duplicated: the UI
+reads them through `Addon:GetTierWeight(tier, weighted)`, so `TIER_WEIGHT` in the core is the only copy. KSL adds tiers between releases,
 so the counter in `GetAllFavorites()` and the scoring chain in `CalculateDungeonScore()` both fall
 back gracefully on an unrecognised tier rather than indexing a nil.
 
@@ -199,9 +202,15 @@ What that leaves:
   link, and the right-click set-tier menu are all produced inside KSL and track its dropdown
   automatically. Reuse that template rather than hand-rolling item buttons or links.
   Two adjustments are applied after `Init()`: undo KSL's stat-highlight desaturation/alpha (everything
-  in our list is already a favorite), and hide `Content.IconBorder` in favour of our tier-coloured
-  border, because KSL's own tier corner icon only appears for the spec currently filtered in KSL while
-  our list can span specs.
+  in our list is already a favorite), and replace `UpdateFavoriteIcon` on the button instance
+  with `ShowFavoritedTier`, because KSL's corner tier icon otherwise shows the tier for the spec
+  currently filtered in KSL (and KSL redraws it on every OnEnter/OnLeave), while our list can span
+  specs. KSL's quality border (`Content.IconBorder`) is left alone. An earlier version hid it for
+  tier-coloured `loottoast-itemborder-*` atlas borders, which do not draw on 12.x -- icons showed no
+  border at all.
+- **Tiers are shown only with KSL's tier icons** (`assets/tier_*.blp`, paths in `TIER_TEXTURE`):
+  item corners, row summary, score key, tooltips. Don't reintroduce per-tier text colours; a second
+  scheme is what made the old UI unexplainable.
 - **Favorites events.** Use `KeystoneLootAPI:RegisterCallback(API.Event.FAVORITES_CHANGED, cb, owner)`.
   `KeystoneLoot.DB:AddObserver` is not reachable.
 - **Read-only state.** `KeystoneLootDB` / `KeystoneLootCharDB` are ordinary SavedVariables globals and

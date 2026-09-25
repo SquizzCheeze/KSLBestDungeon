@@ -31,9 +31,32 @@ local TIER_WEIGHT = {
     [TIER_BIS] = 100,
     [TIER_MUST] = 50,
     [TIER_NICE] = 10,
-    [TIER_CATALYST] = 5,
+    -- KSL only allows Catalyst on the five tier-set slots, so a Catalyst favorite is
+    -- a drop you mean to turn into a set piece -- effectively Best in Slot.
+    [TIER_CATALYST] = 100,
     [TIER_TRANSMOG] = 1,
 };
+
+-- Which tier wins when one item is favorited on several specs at different tiers:
+-- the higher rank. Independent of the "Weight by tier" setting, so switching it never
+-- changes which tier an item is shown and counted at. BiS beats Catalyst although they
+-- weigh the same, since a straight BiS drop needs no catalyst charge. Unknown tiers
+-- from a newer KeystoneLoot rank 0 and lose to every known one.
+local TIER_RANK = {
+    [TIER_BIS] = 5,
+    [TIER_CATALYST] = 4,
+    [TIER_MUST] = 3,
+    [TIER_NICE] = 2,
+    [TIER_TRANSMOG] = 1,
+};
+
+-- What one favorite of this tier adds to a dungeon's score under the current
+-- settings. The UI's score key and tooltips read weights from here, so this table
+-- stays the only copy of them.
+function Addon:GetTierWeight(tier, weighted)
+    if (not weighted) then return 1; end
+    return TIER_WEIGHT[tier] or 1;
+end
 
 -- Default settings
 local DEFAULT_SETTINGS = {
@@ -170,22 +193,40 @@ local function GetAllFavorites()
                                     name = dungeonName,
                                 },
                                 items = {},
+                                itemsById = {},
                                 tiers = { [TIER_BIS] = 0, [TIER_MUST] = 0, [TIER_NICE] = 0, [TIER_CATALYST] = 0, [TIER_TRANSMOG] = 0 },
                             };
                         end
 
-                        table.insert(result[challengeModeId].items, {
-                            itemId = itemId,
-                            tier = tier,
-                            specId = currentSpecId,
-                            -- Keep original bonusIds for reference
-                            bonusIds = itemInfo.bonusIds,
-                            gems = itemInfo.gems,
-                            enchant = itemInfo.enchant,
-                        });
+                        local dungeon = result[challengeModeId];
                         -- Tolerate tiers KeystoneLoot adds that we do not know about yet
-                        local tiers = result[challengeModeId].tiers;
-                        tiers[tier] = (tiers[tier] or 0) + 1;
+                        local tiers = dungeon.tiers;
+                        local existing = dungeon.itemsById[itemId];
+
+                        if (not existing) then
+                            local item = {
+                                itemId = itemId,
+                                tier = tier,
+                                specId = currentSpecId,
+                                -- Keep original bonusIds for reference
+                                bonusIds = itemInfo.bonusIds,
+                                gems = itemInfo.gems,
+                                enchant = itemInfo.enchant,
+                            };
+                            table.insert(dungeon.items, item);
+                            dungeon.itemsById[itemId] = item;
+                            tiers[tier] = (tiers[tier] or 0) + 1;
+                        elseif ((TIER_RANK[tier] or 0) > (TIER_RANK[existing.tier] or 0)) then
+                            -- The same item favorited on another spec (All specs): it counts
+                            -- ONCE, at the best tier any spec gave it.
+                            tiers[existing.tier] = tiers[existing.tier] - 1;
+                            tiers[tier] = (tiers[tier] or 0) + 1;
+                            existing.tier = tier;
+                            existing.specId = currentSpecId;
+                            existing.bonusIds = itemInfo.bonusIds;
+                            existing.gems = itemInfo.gems;
+                            existing.enchant = itemInfo.enchant;
+                        end
                     end
                 end
             end
@@ -385,10 +426,11 @@ local function HookIntoKeystoneLoot()
 
     -- Create scroll frame. UIPanelScrollFrameTemplate hangs its scrollbar off the
     -- scroll frame's right edge, so leave 26px for it inside the inset -- filling
-    -- the inset put the bar outside the window.
+    -- the inset put the bar outside the window. The bottom 26px of the inset are the
+    -- score key, which Init() builds.
     rankingsFrame.ScrollFrame = CreateFrame("ScrollFrame", nil, rankingsFrame, "UIPanelScrollFrameTemplate");
     rankingsFrame.ScrollFrame:SetPoint("TOPLEFT", rankingsFrame.Inset, "TOPLEFT", 4, -4);
-    rankingsFrame.ScrollFrame:SetPoint("BOTTOMRIGHT", rankingsFrame.Inset, "BOTTOMRIGHT", -26, 4);
+    rankingsFrame.ScrollFrame:SetPoint("BOTTOMRIGHT", rankingsFrame.Inset, "BOTTOMRIGHT", -26, 26);
 
     -- Create container. Its width follows the scroll frame, and rows are anchored
     -- to both of its sides, so rows always fit the list whatever the window width.
