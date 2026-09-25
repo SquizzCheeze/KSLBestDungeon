@@ -27,6 +27,16 @@ Added:
   of each item, in each dungeon's summary, in the score key and in tooltips. The
   summary used to be coloured text in a colour scheme of its own.
 
+- When the list is empty it now says why, with a button to fix it. Every case
+  used to say "No favorites found", even when favorites existed and a setting
+  was hiding them:
+  - Min items hiding every dungeon: says how many dungeons have favorites, with
+    a Show all dungeons button.
+  - "All specs" off and this spec has none, though other specs do: a Show all
+    specs button.
+  - Nothing favorited yet: how to add favorites in KeystoneLoot, with a Go to
+    Dungeons button.
+
 - Defaults button, which puts the ranking options back without reloading your
   interface. /kslbd reset still wipes everything and reloads.
 

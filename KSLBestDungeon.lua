@@ -280,17 +280,21 @@ local function CalculateDungeonScore(dungeonData)
     };
 end
 
--- Get ranked dungeon list
+-- Get ranked dungeon list.
+-- Second return: how many dungeons had favorites BEFORE the Min items filter, so an
+-- empty list can say whether that filter emptied it.
 function Addon:GetRankedDungeons()
     if (not KeystoneLootDB or not KeystoneLootCharDB) then
-        return {}, "KeystoneLoot not loaded";
+        return {}, 0;
     end
 
     local favoritesByDungeon = GetAllFavorites();
     local ranked = {};
+    local candidates = 0;
 
     for challengeModeId, data in pairs(favoritesByDungeon) do
         local stats = CalculateDungeonScore(data);
+        candidates = candidates + 1;
 
         -- Filter by minimum favorites
         if (stats.totalItems >= GetSetting("minFavorites")) then
@@ -327,7 +331,25 @@ function Addon:GetRankedDungeons()
         end
     end);
 
-    return ranked;
+    return ranked, candidates;
+end
+
+-- Whether the selected character has any dungeon favorite at all, on any spec. Tells
+-- "this spec has none" (offer All specs) apart from "nothing favorited yet".
+function Addon:HasAnyDungeonFavorites()
+    local characterKey = KeystoneLootCharDB and KeystoneLootCharDB.ui and KeystoneLootCharDB.ui.selectedCharacterKey;
+    local favorites = characterKey and KeystoneLootDB and KeystoneLootDB.favorites
+        and KeystoneLootDB.favorites[characterKey];
+    if (not favorites) then return false; end
+
+    for sourceId, sourceData in pairs(favorites) do
+        if (type(sourceId) == "number" and sourceId > 0 and sourceId < 1000) then
+            for _, specData in pairs(sourceData) do
+                if (next(specData)) then return true; end
+            end
+        end
+    end
+    return false;
 end
 
 -- Get item info (uses WoW API for icon/name)

@@ -579,26 +579,103 @@ function KSLBestDungeonRankingsFrameMixin:GetFavoritesHash()
     return stateKey .. "|" .. table.concat(hashParts, ",");
 end
 
--- Show a status message instead of the list.
--- Reuses a single FontString: FontStrings are regions, not children, so they are not
--- picked up by the container:GetChildren() cleanup in Refresh().
-function KSLBestDungeonRankingsFrameMixin:ShowMessage(text, r, g, b)
-    local container = self.ScrollFrame.Container;
+-- Show a status message instead of the list: a title, an explanation and, when there
+-- is one obvious fix, a button that does it.
+--
+-- Parented to the rankings frame, NOT the scroll container: Refresh() detaches every
+-- child of the container, and would take the message with it. Centred on the inset so
+-- it sits in the middle of the empty list at any window size.
+function KSLBestDungeonRankingsFrameMixin:ShowMessage(title, body, buttonText, onClick)
+    local message = self.Message;
+    if (not message) then
+        message = CreateFrame("Frame", nil, self);
+        message:SetPoint("CENTER", self.Inset, "CENTER", 0, 10);
+        message:SetSize(360, 160);
 
-    if (not self.MessageText) then
-        self.MessageText = container:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge");
-        self.MessageText:SetPoint("TOP", 0, -120);
+        message.Title = message:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge");
+        message.Title:SetPoint("TOP", 0, 0);
+        message.Title:SetWidth(360);
+
+        message.Body = message:CreateFontString(nil, "OVERLAY", "GameFontHighlight");
+        message.Body:SetPoint("TOP", message.Title, "BOTTOM", 0, -10);
+        message.Body:SetWidth(340);
+        message.Body:SetSpacing(3);
+
+        message.Button = CreateFrame("Button", nil, message, "UIPanelButtonTemplate");
+        message.Button:SetHeight(24);
+        message.Button:SetPoint("TOP", message.Body, "BOTTOM", 0, -14);
+        message.Button:SetScript("OnClick", function(button)
+            if (button.onClick) then button.onClick(); end
+        end);
+
+        self.Message = message;
     end
 
-    self.MessageText:SetText(text);
-    self.MessageText:SetTextColor(r, g, b);
-    self.MessageText:Show();
+    message.Title:SetText(title);
+    message.Body:SetText(body or "");
+    if (buttonText) then
+        message.Button:SetText(buttonText);
+        message.Button:SetWidth(math.max(120, message.Button:GetTextWidth() + 30));
+        message.Button.onClick = onClick;
+        message.Button:Show();
+    else
+        message.Button.onClick = nil;
+        message.Button:Hide();
+    end
+    message:Show();
 end
 
 function KSLBestDungeonRankingsFrameMixin:HideMessage()
-    if (self.MessageText) then
-        self.MessageText:Hide();
+    if (self.Message) then
+        self.Message:Hide();
     end
+end
+
+-- Explain an empty list, most specific cause first, each with the fix as a button.
+function KSLBestDungeonRankingsFrameMixin:ShowEmptyReason(candidates)
+    local frame = self;
+
+    -- Favorites exist but Min items hides every dungeon.
+    if (candidates > 0) then
+        local minFavorites = Addon:GetSetting("minFavorites");
+        self:ShowMessage("Every dungeon is hidden by Min items",
+            string.format("%d %s favorites, but none has at least %d. Lower Min items in the "
+                .. "toolbar, or show them all.",
+                candidates, (candidates == 1) and "dungeon has" or "dungeons have", minFavorites),
+            "Show all dungeons",
+            function()
+                Addon:SetSetting("minFavorites", 1);
+                frame:Refresh();
+            end);
+        return;
+    end
+
+    -- This spec has none, but other specs do.
+    if (not Addon:GetSetting("showAllSpecs") and Addon:HasAnyDungeonFavorites()) then
+        local _, _, specId = Addon:GetRankingContext();
+        local _, specName = GetSpecializationInfoByID(specId or 0);
+        self:ShowMessage(string.format("No favorites for %s", specName or "this spec"),
+            "This character has dungeon favorites on its other specs. \"All specs\" is off, "
+            .. "so only this spec's favorites are ranked.",
+            "Show all specs",
+            function()
+                Addon:SetSetting("showAllSpecs", true);
+                frame:Refresh();
+            end);
+        return;
+    end
+
+    -- Nothing favorited yet.
+    local KSLFrame = self:GetParent();
+    local dungeonsTabId = KSLFrame and KSLFrame.dungeonsTabId;
+    self:ShowMessage("No dungeon favorites yet",
+        "In KeystoneLoot's Dungeons tab, click an item and pick a tier: Best in Slot, "
+        .. "Catalyst, Must have, Nice to have or Transmog. This tab then ranks the dungeons "
+        .. "by what they drop for you.",
+        dungeonsTabId and "Go to Dungeons" or nil,
+        function()
+            KSLFrame:SetTab(dungeonsTabId);
+        end);
 end
 
 function KSLBestDungeonRankingsFrameMixin:Refresh()
@@ -614,13 +691,16 @@ function KSLBestDungeonRankingsFrameMixin:Refresh()
         child:Hide();
         child:SetParent(nil);
     end
+    container:SetHeight(1);
 
     self:HideMessage();
     self:UpdateToolbar();
 
     -- Check KeystoneLoot
     if (not KeystoneLootDB or not KeystoneLootCharDB) then
-        self:ShowMessage("|cffff0000KeystoneLoot not loaded|r\n\nEnable KeystoneLoot addon to use KSLBestDungeon", 1, 0.3, 0.3);
+        self:ShowMessage("KeystoneLoot isn't loaded",
+            "Best Dungeons ranks your KeystoneLoot favorites. Enable KeystoneLoot in the "
+            .. "AddOns list and reload.");
         return;
     end
 
@@ -628,15 +708,16 @@ function KSLBestDungeonRankingsFrameMixin:Refresh()
     local characterKey = KeystoneLootCharDB.ui and KeystoneLootCharDB.ui.selectedCharacterKey;
     local info = characterKey and { strsplit("-", characterKey) };
     if (not info or #info < 2) then
-        self:ShowMessage("|cffffcc00No character selected|r\n\nOpen KeystoneLoot (/ksl) and select a character", 1, 0.8, 0);
+        self:ShowMessage("No character selected",
+            "Pick a character with the character icon at the top right of KeystoneLoot.");
         return;
     end
 
     -- Get ranked dungeons
-    local ranked = Addon:GetRankedDungeons();
+    local ranked, candidates = Addon:GetRankedDungeons();
 
     if (#ranked == 0) then
-        self:ShowMessage("|cff00ffffNo favorites found|r\n\nAdd favorites in KeystoneLoot for this character/spec", 0, 1, 1);
+        self:ShowEmptyReason(candidates or 0);
         return;
     end
 

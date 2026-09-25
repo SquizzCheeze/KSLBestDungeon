@@ -32,6 +32,7 @@ local RELEASE_NOTES = {
         "Catalyst favorites now count as much as Best in Slot, since they become set pieces. Dungeons with them will move up the list.",
         "A score key along the bottom shows what each tier is worth, and hovering a dungeon shows how its score was worked out.",
         "Tiers use KeystoneLoot's own tier icons everywhere, and each item's icon shows the tier you favorited it at.",
+        "An empty list now says why -- a filter hiding everything, or no favorites yet -- with a button to fix it.",
         "Defaults puts the options back without reloading your interface.",
         "Fixed the KeystoneLoot window getting shorter every time you opened the Best Dungeons tab, and the list's scrollbar sitting outside the window.",
         "Every favorite is shown now: icons wrap onto a second line instead of running off the edge.",

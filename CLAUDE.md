@@ -172,6 +172,12 @@ ranking, update `GetFavoritesHash()` too or live updates stop.
 `Refresh()` records the hash it rendered for (on every path, including the early "no character" /
 "no favorites" returns) so the ticker does not immediately re-fire.
 
+An empty list always says **why**, via `ShowEmptyReason(candidates)`, most specific cause first:
+Min items hid every dungeon (`GetRankedDungeons()`'s second return counts dungeons before that filter),
+then this spec has none but others do (`Addon:HasAnyDungeonFavorites()`), then nothing favorited yet.
+Each offers its fix as a button. The message frame is parented to the rankings frame, not the scroll
+container, because `Refresh()` detaches every container child.
+
 The mixin is copied key-by-key onto a plain `CreateFrame()` frame, so **script handlers are not
 wired up automatically the way an XML template mixin's would be** — `Init()` calls `SetScript` for
 `OnShow`/`OnHide` explicitly. `OnHide` cancels the ticker and `OnShow` recreates it via
