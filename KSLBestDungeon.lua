@@ -356,10 +356,18 @@ local function HookIntoKeystoneLoot()
         return false;
     end
 
-    -- Create the rankings frame as a child of KSL's frame
+    -- Create the rankings frame as a child of KSL's frame.
+    --
+    -- It covers the WHOLE window, like KSL's own tab frames: anchored at TOPLEFT
+    -- only, with an explicit size, and its content laid out from 60px down (below
+    -- KSL's header dropdowns) to 24px up (above KSL's footer text). KSL's SetTab
+    -- resizes the window to the selected tab frame's size, so a frame whose size
+    -- is derived from the window -- as this one used to be, anchored at -60 and
+    -- BOTTOMRIGHT -- makes the window 60px shorter every time the tab is selected.
+    -- SyncSizeToKSL() (on every show) copies the Dungeons tab's size, so switching
+    -- tabs does not jump and KSL's wide mode carries over.
     local rankingsFrame = CreateFrame("Frame", nil, KSLFrame);
-    rankingsFrame:SetPoint("TOPLEFT", 0, -60);
-    rankingsFrame:SetPoint("BOTTOMRIGHT", 0, 0);
+    rankingsFrame:SetPoint("TOPLEFT");
     rankingsFrame:Hide(); -- Hide initially, tab system will show when our tab is selected
 
     -- Mix in the RankingsFrame methods
@@ -367,26 +375,34 @@ local function HookIntoKeystoneLoot()
         rankingsFrame[k] = v;
     end
 
-    -- Create inset. The top 58px are left for the toolbar, which Init() builds.
-    rankingsFrame.Inset = CreateFrame("Frame", nil, rankingsFrame, "InsetFrameTemplate3");
-    rankingsFrame.Inset:SetPoint("TOPLEFT", 4, -58);
-    rankingsFrame.Inset:SetPoint("BOTTOMRIGHT", -6, 4);
+    rankingsFrame:SyncSizeToKSL();
 
-    -- Create scroll frame
+    -- Create inset. Between KSL's header (60px) and the inset sit the toolbar's
+    -- 58px, which Init() builds; the bottom 24px are KSL's footer text.
+    rankingsFrame.Inset = CreateFrame("Frame", nil, rankingsFrame, "InsetFrameTemplate3");
+    rankingsFrame.Inset:SetPoint("TOPLEFT", 4, -118);
+    rankingsFrame.Inset:SetPoint("BOTTOMRIGHT", -4, 24);
+
+    -- Create scroll frame. UIPanelScrollFrameTemplate hangs its scrollbar off the
+    -- scroll frame's right edge, so leave 26px for it inside the inset -- filling
+    -- the inset put the bar outside the window.
     rankingsFrame.ScrollFrame = CreateFrame("ScrollFrame", nil, rankingsFrame, "UIPanelScrollFrameTemplate");
     rankingsFrame.ScrollFrame:SetPoint("TOPLEFT", rankingsFrame.Inset, "TOPLEFT", 4, -4);
-    rankingsFrame.ScrollFrame:SetPoint("BOTTOMRIGHT", rankingsFrame.Inset, "BOTTOMRIGHT", -4, 4);
+    rankingsFrame.ScrollFrame:SetPoint("BOTTOMRIGHT", rankingsFrame.Inset, "BOTTOMRIGHT", -26, 4);
 
-    -- Hide the scrollbar
-    if (rankingsFrame.ScrollFrame.ScrollBar) then
-        rankingsFrame.ScrollFrame.ScrollBar:Hide();
-    end
-
-    -- Create container
+    -- Create container. Its width follows the scroll frame, and rows are anchored
+    -- to both of its sides, so rows always fit the list whatever the window width.
     rankingsFrame.ScrollFrame.Container = CreateFrame("Frame", nil, rankingsFrame.ScrollFrame);
-    rankingsFrame.ScrollFrame.Container:SetSize(580, 1);
+    rankingsFrame.ScrollFrame.Container:SetSize(rankingsFrame.ScrollFrame:GetWidth(), 1);
     rankingsFrame.ScrollFrame.Container:SetPoint("TOPLEFT");
     rankingsFrame.ScrollFrame:SetScrollChild(rankingsFrame.ScrollFrame.Container);
+    rankingsFrame.ScrollFrame:HookScript("OnSizeChanged", function(scrollFrame, width)
+        scrollFrame.Container:SetWidth(width);
+        -- Icons wrap to the row width, so a new width (wide mode) needs a relayout.
+        if (rankingsFrame:IsShown()) then
+            rankingsFrame:Refresh();
+        end
+    end);
 
     -- Initialize the rankings frame
     rankingsFrame:Init();

@@ -47,6 +47,23 @@ Removed:
 
 Fixed:
 
+- The KeystoneLoot window got 60px shorter every time the Best Dungeons tab
+  was selected, including each /kslbd while it was already open. The tab now
+  keeps the same size as KeystoneLoot's Dungeons tab, so switching between them
+  no longer changes the window, and KeystoneLoot's wide mode carries over.
+
+- The list's scrollbar was drawn outside the window, off its right edge. It now
+  sits inside the list.
+
+- KeystoneLoot's footer text was drawn over the bottom of the list.
+
+- Dungeons with more than about eight favorites had their last icons, and the
+  "+N more" label, cut off by the edge of the window. Icons now wrap onto a
+  second line so every favorite is shown.
+
+- Long dungeon names ran underneath the item icons. They are now shortened with
+  "..." and shown in full when you hover the row.
+
 - Whispering the ranking to a character by name. The name box was built for an
   older version of the game's popup and would have errored; it was also not
   reachable from any menu.

@@ -29,6 +29,8 @@ local RELEASE_NOTES = {
         "The top line says whose favorites are being ranked, and for which specs.",
         "Share posts the ranking to chat. Channels you cannot use right now are greyed out with the reason, and you can whisper any character by name.",
         "Defaults puts the options back without reloading your interface.",
+        "Fixed the KeystoneLoot window getting shorter every time you opened the Best Dungeons tab, and the list's scrollbar sitting outside the window.",
+        "Every favorite is shown now: icons wrap onto a second line instead of running off the edge.",
         "/rl now reloads your interface, the same as /reload. It is only claimed if no other addon already provides it.",
         "Supports patch 12.1.5 as well as 12.1.0.",
         "This window is new: a short note about what changed, once per update. Type /kslbd notes to see it again.",

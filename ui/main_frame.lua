@@ -225,9 +225,11 @@ end
 function KSLBestDungeonRankingsFrameMixin:CreateToolbar()
     local frame = self;
 
+    -- 60px down: the rankings frame covers the whole KSL window, and the top 60px
+    -- are KSL's title bar and header dropdowns.
     local toolbar = CreateFrame("Frame", nil, self);
-    toolbar:SetPoint("TOPLEFT", 10, -4);
-    toolbar:SetPoint("TOPRIGHT", -12, -4);
+    toolbar:SetPoint("TOPLEFT", 10, -64);
+    toolbar:SetPoint("TOPRIGHT", -12, -64);
     toolbar:SetHeight(52);
     self.Toolbar = toolbar;
 
@@ -429,7 +431,32 @@ function KSLBestDungeonRankingsFrameMixin:OnFavoritesChanged()
     self:Refresh();
 end
 
+-- Fallback when KSL's Dungeons tab has not laid itself out yet: its default width,
+-- and roughly its height for a season of eight dungeons.
+local DEFAULT_WIDTH, DEFAULT_HEIGHT = 500, 524;
+
+-- Match the Dungeons tab's size, then size the window to us. KSL's SetTab does the
+-- latter too (RefreshSize), but that can run before or after this OnShow depending
+-- on the path, so do it here as well rather than rely on the order.
+function KSLBestDungeonRankingsFrameMixin:SyncSizeToKSL()
+    local KSLFrame = self:GetParent();
+    local reference = KSLFrame and KSLFrame.DungeonsFrame;
+    local width, height = 0, 0;
+    if (reference) then
+        width, height = reference:GetSize();
+    end
+    if (width < 100 or height < 200) then
+        width, height = DEFAULT_WIDTH, DEFAULT_HEIGHT;
+    end
+    self:SetSize(width, height);
+
+    if (self:IsShown() and KSLFrame) then
+        KSLFrame:SetSize(width, height);
+    end
+end
+
 function KSLBestDungeonRankingsFrameMixin:OnShow()
+    self:SyncSizeToKSL();
     -- OnHide cancels the ticker, so it has to be recreated every time our tab is selected.
     self:StartPolling();
     self:Refresh();
@@ -538,7 +565,9 @@ function KSLBestDungeonRankingsFrameMixin:Refresh()
         local frame = CreateFrame("Frame", nil, container, "KSLBestDungeonEntryTemplate");
         frame:SetPoint("TOPLEFT", 0, -yOffset);
         frame:SetPoint("TOPRIGHT", 0, -yOffset);
-        frame:Init(rank, dungeonData);
+        -- Passed explicitly: the icons wrap to the row width, and the row's anchors
+        -- may not have resolved to a size yet.
+        frame:Init(rank, dungeonData, container:GetWidth());
         frame:Show();
         yOffset = yOffset + frame:GetHeight() + 4;
     end
@@ -566,25 +595,47 @@ local KSL_ICON_BUTTON_TEMPLATE = "KeystoneLootLootIconButtonTemplate";
 -- ============================================================
 KSLBestDungeonEntryMixin = {};
 
+-- Row layout. The text column has a fixed width and truncates with "..." (the full
+-- dungeon name is in the row tooltip); the icons take the rest of the row and wrap
+-- onto further lines, so every favorite is visible at any window width.
+local TEXT_LEFT = 50;
+local TEXT_WIDTH = 140;
+local ICONS_LEFT = TEXT_LEFT + TEXT_WIDTH + 8;
+local ICONS_RIGHT_MARGIN = 8;
+local ROW_PADDING = 8;
+local MIN_ROW_HEIGHT = 70;
+local ICON_SIZE = 34; -- KeystoneLootLootIconButtonTemplate is 34x34
+local ICON_SPACING = 2;
+local ICON_LINE_SPACING = 4;
+
+local function CreateColumnText(parent, font, y)
+    local text = parent:CreateFontString(nil, "OVERLAY", font);
+    text:SetPoint("TOPLEFT", TEXT_LEFT, y);
+    text:SetWidth(TEXT_WIDTH);
+    text:SetJustifyH("LEFT");
+    text:SetWordWrap(false);
+    return text;
+end
+
 function KSLBestDungeonEntryMixin:OnLoad()
+    -- Top-aligned rather than centred, so it stays beside the name when the icons
+    -- wrap and the row grows.
     self.RankText = self:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge");
-    self.RankText:SetPoint("LEFT", 10, 0);
+    self.RankText:SetPoint("TOPLEFT", 10, -26);
     self.RankText:SetTextColor(1, 0.82, 0);
 
-    self.NameText = self:CreateFontString(nil, "OVERLAY", "GameFontNormal");
-    self.NameText:SetPoint("TOPLEFT", 50, -8);
+    self.NameText = CreateColumnText(self, "GameFontNormal", -ROW_PADDING);
 
-    self.ScoreText = self:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall");
-    self.ScoreText:SetPoint("TOPLEFT", 50, -26);
+    self.ScoreText = CreateColumnText(self, "GameFontNormalSmall", -26);
     self.ScoreText:SetTextColor(0.8, 0.8, 0.8);
 
-    self.TierText = self:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall");
-    self.TierText:SetPoint("TOPLEFT", 50, -42);
+    self.TierText = CreateColumnText(self, "GameFontNormalSmall", -42);
     self.TierText:SetTextColor(0.7, 0.7, 0.7);
 
     self.IconContainer = CreateFrame("Frame", nil, self);
-    self.IconContainer:SetPoint("TOPRIGHT", -10, -8);
-    self.IconContainer:SetSize(400, 60);
+    self.IconContainer:SetPoint("TOPLEFT", ICONS_LEFT, -ROW_PADDING);
+    self.IconContainer:SetPoint("TOPRIGHT", -ICONS_RIGHT_MARGIN, -ROW_PADDING);
+    self.IconContainer:SetHeight(ICON_SIZE);
 
     self.iconFrames = {};
 
@@ -609,7 +660,7 @@ function KSLBestDungeonEntryMixin:OnLoad()
     end);
 end
 
-function KSLBestDungeonEntryMixin:Init(rank, dungeonData)
+function KSLBestDungeonEntryMixin:Init(rank, dungeonData, rowWidth)
     self.dungeonData = dungeonData;
 
     self.RankText:SetText("#" .. rank);
@@ -636,11 +687,10 @@ function KSLBestDungeonEntryMixin:Init(rank, dungeonData)
     end
     self.TierText:SetText(table.concat(tierParts, "   "));
 
-    -- Item icons
+    -- Item icons, wrapped onto as many lines as they need.
     local container = self.IconContainer;
-    local maxIcons = 10;
-    local iconSize = 34; -- KeystoneLootLootIconButtonTemplate is 34x34
-    local spacing = 2;
+    local iconsWidth = (rowWidth or 0) - ICONS_LEFT - ICONS_RIGHT_MARGIN;
+    local perLine = math.max(1, math.floor((iconsWidth + ICON_SPACING) / (ICON_SIZE + ICON_SPACING)));
 
     for _, iconFrame in ipairs(self.iconFrames) do
         iconFrame:Hide();
@@ -649,12 +699,13 @@ function KSLBestDungeonEntryMixin:Init(rank, dungeonData)
     self.iconFrames = {};
 
     for i, item in ipairs(dungeonData.items) do
-        if (i > maxIcons) then break; end
+        local column = (i - 1) % perLine;
+        local line = math.floor((i - 1) / perLine);
 
         -- KSL's own button: it sets the icon and builds the tooltip/chat link through
         -- KSL's Upgrade module, so the item level always matches KSL's dropdown.
         local iconFrame = CreateFrame("Button", nil, container, KSL_ICON_BUTTON_TEMPLATE);
-        iconFrame:SetPoint("TOPLEFT", (i - 1) * (iconSize + spacing), 0);
+        iconFrame:SetPoint("TOPLEFT", column * (ICON_SIZE + ICON_SPACING), -line * (ICON_SIZE + ICON_LINE_SPACING));
         iconFrame:Init({ itemId = item.itemId });
 
         -- KSL's Init() desaturates/dims icons that don't match its stat highlighting
@@ -683,12 +734,8 @@ function KSLBestDungeonEntryMixin:Init(rank, dungeonData)
         table.insert(self.iconFrames, iconFrame);
     end
 
-    if (#dungeonData.items > maxIcons) then
-        local moreText = container:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall");
-        moreText:SetPoint("LEFT", maxIcons * (iconSize + spacing), 0);
-        moreText:SetText("|cff808080+" .. (#dungeonData.items - maxIcons) .. " more|r");
-        table.insert(self.iconFrames, moreText);
-    end
-
-    self:SetHeight(70);
+    local lines = math.max(1, math.ceil(#dungeonData.items / perLine));
+    local iconsHeight = lines * ICON_SIZE + (lines - 1) * ICON_LINE_SPACING;
+    container:SetHeight(iconsHeight);
+    self:SetHeight(math.max(MIN_ROW_HEIGHT, iconsHeight + ROW_PADDING * 2));
 end

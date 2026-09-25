@@ -106,16 +106,6 @@ It then:
 - Registers via `KSLFrame:AddNamedTab("Best Dungeons", rankingsFrame)` (Blizzard's `TabSystemOwnerMixin`).
   **TabSystem shows/hides our frame and its children automatically** — never manually `Show()`/`Hide()`
   the rankings frame or the toolbar, or the tab switching breaks.
-
-### Toolbar
-
-`RankingsFrameMixin:CreateToolbar()` (called from `Init()`) builds two rows in the top 58px of the
-rankings frame; `HookIntoKeystoneLoot()` starts the Inset below that. Row 1 is the context line (whose
-favorites, which specs), **Defaults** (`Addon:ResetSettings()`, no reload) and **Share**; row 2 is Sort,
-All specs, Weight by tier, Min items. Every control has a tooltip — keep it that way, the point of the
-toolbar is that nothing is unexplained. `UpdateToolbar()` runs on every `Refresh()` and re-syncs the
-checkboxes and dropdown texts from settings, so anything that changes settings only needs to call
-`Refresh()`. Width is tight at KSL's default 500px frame: check any new control fits before adding it.
 - Wraps `KSLFrame`'s `OnShow` script and `hooksecurefunc`s `KSLFrame:SetTab` to call `Refresh()` when our
   tab becomes active.
 
@@ -124,6 +114,25 @@ Two consequences of borrowing KSL's frame that are easy to trip on:
   That's load-bearing: it means `Upgrade:GetCurrentTrack()` still resolves the dungeon upgrade track
   while our tab is open, so item links scale to the right ilvl.
 - KSL's `RefreshSize(tabId)` resizes the whole KSL frame to our frame's size when our tab is selected.
+  So the rankings frame must **cover the whole window with an explicit size**, like KSL's own tab frames
+  (TOPLEFT anchor only; content from -60 down to +24 above KSL's footer text). It was once anchored at
+  `-60` and `BOTTOMRIGHT`, so its size derived from the window, and every tab selection shrank the window
+  by 60px. `SyncSizeToKSL()` copies `KSLFrame.DungeonsFrame`'s size on every show (so tab switches do
+  not jump and wide mode carries over) and sizes the window to match. Never give it a second anchor.
+- The scroll frame stops 26px short of the inset's right edge: `UIPanelScrollFrameTemplate` hangs its
+  scrollbar off the scroll frame's right side, which is outside the window if the scroll frame fills
+  the inset. The container's width follows the scroll frame (`OnSizeChanged`), which triggers a
+  `Refresh()` because icon wrapping depends on it.
+
+### Toolbar
+
+`RankingsFrameMixin:CreateToolbar()` (called from `Init()`) builds two rows in the 58px below KSL's
+60px header; `HookIntoKeystoneLoot()` starts the Inset below that. Row 1 is the context line (whose
+favorites, which specs), **Defaults** (`Addon:ResetSettings()`, no reload) and **Share**; row 2 is Sort,
+All specs, Weight by tier, Min items. Every control has a tooltip — keep it that way, the point of the
+toolbar is that nothing is unexplained. `UpdateToolbar()` runs on every `Refresh()` and re-syncs the
+checkboxes and dropdown texts from settings, so anything that changes settings only needs to call
+`Refresh()`. Width is tight at KSL's default 500px frame: check any new control fits before adding it.
 
 ### Data flow
 
@@ -166,8 +175,10 @@ wired up automatically the way an XML template mixin's would be** — `Init()` c
 `StartPolling()`; if you add a handler to the mixin, register it there too or it will never fire.
 
 `Refresh()` fully tears down and rebuilds every row (`child:Hide(); child:SetParent(nil)`) — there is no
-frame pool. Rows are `KSLBestDungeonEntryTemplate` frames, fixed 70px tall, max 10 item icons plus a
-"+N more" label.
+frame pool. Rows are `KSLBestDungeonEntryTemplate` frames anchored to both sides of the container, so
+they are as wide as the list (the XML's 580px is overridden). A fixed 140px text column truncates with
+"..."; icons fill the rest and wrap onto more lines, growing the row from its 70px minimum. There is no
+icon cap. `Init()` takes the row width explicitly because the anchors may not have resolved yet.
 
 ### What is reachable in KeystoneLoot — and what is not
 
