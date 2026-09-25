@@ -27,6 +27,16 @@
         "StaticPopupDialogs",
         "ACCEPT",
         "CANCEL",
-        "ChatEdit_FocusActiveWindow"
+        "ChatEdit_FocusActiveWindow",
+        "BNSendWhisper",
+        "LE_PARTY_CATEGORY_HOME",
+        "LE_PARTY_CATEGORY_INSTANCE",
+        "KeystoneLootDB",
+        "KeystoneLootCharDB",
+        "KeystoneLootAPI",
+        "KeystoneLootFrame",
+        "KSLBestDungeonDB",
+        "KSLBestDungeonRankingsFrameMixin",
+        "KSLBestDungeonEntryMixin"
     ]
 }

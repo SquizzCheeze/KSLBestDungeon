@@ -6,9 +6,8 @@
 ## X-Curse-Project-ID: 1599575
 ## X-Flavor: Mainline
 ## Version: 1.4
-## OptionalDeps: KeystoneLoot, LibStub
+## Dependencies: KeystoneLoot
 ## SavedVariables: KSLBestDungeonDB
-## SavedVariablesPerCharacter: KSLBestDungeonCharDB
 
 # UI (templates must load first)
 ui/main_frame.xml

@@ -106,8 +106,14 @@ It then:
 - Registers via `KSLFrame:AddNamedTab("Best Dungeons", rankingsFrame)` (Blizzard's `TabSystemOwnerMixin`).
   **TabSystem shows/hides our frame and its children automatically** — never manually `Show()`/`Hide()`
   the rankings frame or the toolbar, or the tab switching breaks.
-- Wraps `KSLFrame`'s `OnShow` script and `hooksecurefunc`s `KSLFrame:SetTab` to call `Refresh()` when our
-  tab becomes active.
+- Installs **no hooks on KSL's frame**. The rankings frame's own `OnShow` fires both when our tab is
+  selected and when KSL's window opens with our tab selected, and refreshes. (It used to also wrap
+  `KSLFrame's` `OnShow` and `hooksecurefunc` `SetTab`, which rebuilt the list three times per open.)
+
+`TryHook()` starts unconditionally at `PLAYER_LOGIN` and retries until KSL's tab system exists. It
+must not wait for `KeystoneLootDB`: on a first-ever KSL session that table is only created later, at
+KSL's `PLAYER_ENTERING_WORLD`. KeystoneLoot is a hard `## Dependencies` in the TOC, so it always loads
+first; if it is disabled, this addon does not load at all.
 
 Two consequences of borrowing KSL's frame that are easy to trip on:
 - KSL's `SetTab` calls `GetTabName(tabId)`, which doesn't know our tab and falls back to `"dungeons"`.
@@ -146,6 +152,17 @@ KeystoneLootDB.favorites[characterKey][sourceId][specId][itemId] = { tier, bonus
   → Addon:GetRankedDungeons() filters by minFavorites, sorts by settings.sortBy
   → RankingsFrameMixin:Refresh() rebuilds the list
 ```
+
+**Which class/spec is ranked.** `GetCurrentCharacterInfo()` mirrors KSL's `GetFavoritesListSpecId`
+(`modules/query.lua`): the class is always the selected character's (the key's trailing number, so alts
+work); the spec is `filters.specId` only when `filters.classId` equals that class, otherwise 0 = all specs.
+KSL's character picker sets `classId` = alt's class and `specId` = 0 on every switch. Never fall back to
+the *logged-in* character's spec: that is the bug where a Paladin alt ranked as "Beast Mastery only".
+Every consumer treats spec 0 as all specs even with the All specs setting off.
+
+Favorites for every character on the WoW account are in `KeystoneLootDB.favorites` (account-wide), so
+any alt that has logged in with KSL can be ranked by selecting it in KSL's picker. Characters on other
+WoW accounts cannot be seen (SavedVariables are per WoW account).
 
 **KSL's Slot filter.** The ranking follows the Slot dropdown in KSL's header. `GetSlotFilter()` in the core
 mirrors KSL's `Query:GetDungeonItems` (`modules/query.lua`): Favorites (-1) = everything; All slots (-2) =
@@ -234,9 +251,6 @@ What that leaves:
 - **Character keys are `Realm-Name-ClassId`** (e.g. `Illidan-Squizz-3`, KSL's `Character:GetKey()`), NOT
   `Name-Realm`. Parse from the right, `^(.*)%-(.-)%-(%d+)$`, because realms can contain hyphens
   (Azjol-Nerub). The trailing number is the selected character's numeric class ID.
-
-`Addon:GetItemInfo`/`GetItemInfoFromLink` in the core file are thin `C_Item.GetItemInfo` wrappers that
-return `nil` until the client has cached the item.
 
 ## Conventions
 

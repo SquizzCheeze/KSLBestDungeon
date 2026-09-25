@@ -35,6 +35,7 @@ local RELEASE_NOTES = {
         "The ranking follows KeystoneLoot's Slot menu: pick Trinket there to find the best dungeon for your trinkets.",
         "An empty list now says why -- a filter hiding everything, or no favorites yet -- with a button to fix it.",
         "Defaults puts the options back without reloading your interface.",
+        "Fixed alts being ranked for your logged-in character's spec -- a Paladin alt showed as Beast Mastery -- when \"All specs\" is off.",
         "Fixed the KeystoneLoot window getting shorter every time you opened the Best Dungeons tab, and the list's scrollbar sitting outside the window.",
         "Every favorite is shown now: icons wrap onto a second line instead of running off the edge.",
         "/rl now reloads your interface, the same as /reload. It is only claimed if no other addon already provides it.",

@@ -107,6 +107,20 @@ Fixed:
   disagree with the score when "All specs" is on. It now always shows the
   favorited tier.
 
+- Viewing an alt with "All specs" off ranked it for your logged-in character's
+  spec: select a Paladin alt from a Hunter and it said "Beast Mastery only" and
+  found nothing. It now follows KeystoneLoot, which switches to all specs when
+  you pick another character, and uses a spec picked in KeystoneLoot's class
+  menu only when that menu is on the selected character's class.
+
+- The Best Dungeons tab did not appear on your first ever session with
+  KeystoneLoot, only after a /reload.
+
+- KeystoneLoot is now a required dependency, so the AddOns list says so when it
+  is missing instead of this addon loading and doing nothing.
+
+- Opening the tab built the list three times over. It builds it once.
+
 - Long dungeon names ran underneath the item icons. They are now shortened with
   "..." and shown in full when you hover the row.
 

@@ -415,6 +415,8 @@ function KSLBestDungeonRankingsFrameMixin:UpdateScoreKey()
     key.Text:SetText(prefix .. table.concat(parts, "   "));
 end
 
+local SEPARATOR = "  |cff808080-|r  ";
+
 -- Bring the toolbar in line with the current settings and KSL selection. Called from
 -- every Refresh(), which also covers Defaults and character/spec changes in KSL.
 function KSLBestDungeonRankingsFrameMixin:UpdateToolbar()
@@ -448,31 +450,23 @@ function KSLBestDungeonRankingsFrameMixin:UpdateToolbar()
     end
 
     local specText;
-    if (Addon:GetSetting("showAllSpecs")) then
+    -- Spec 0: KSL's class menu is on all specs, or on another class than the selected
+    -- character's (see GetCurrentCharacterInfo), so every spec is ranked either way.
+    if (Addon:GetSetting("showAllSpecs") or not specId or specId == 0) then
         specText = "all specs";
     else
         local _, specName = GetSpecializationInfoByID(specId or 0);
         specText = (specName or "current spec") .. " only";
     end
 
-    local text = "Ranking " .. name .. "  |cff808080·|r  " .. specText;
+    -- Plain ASCII separator: the game font has no glyph for a middle dot, which drew
+    -- as blank space.
+    local text = "Ranking " .. name .. SEPARATOR .. specText;
     local slotLabel = Addon:GetSlotFilterLabel();
     if (slotLabel) then
-        text = text .. "  |cff808080·|r  " .. slotLabel;
+        text = text .. SEPARATOR .. slotLabel;
     end
     toolbar.Context.Text:SetText(text);
-end
-
--- Get Battle.net account ID by BattleTag from friends list (kept for backward compatibility)
-function Addon:GetBNetAccountIDByBattleTag(battleTag)
-    local numTotal = BNGetNumFriends();
-    for i = 1, numTotal do
-        local accountInfo = C_BattleNet.GetFriendAccountInfo(i);
-        if (accountInfo and accountInfo.battleTag == battleTag) then
-            return accountInfo.bnetAccountID;
-        end
-    end
-    return nil;
 end
 
 -- ============================================================
@@ -669,9 +663,9 @@ function KSLBestDungeonRankingsFrameMixin:ShowEmptyReason(candidates)
     end
 
     -- This spec has none, but other specs do.
-    if (not Addon:GetSetting("showAllSpecs") and Addon:HasAnyDungeonFavorites()) then
-        local _, _, specId = Addon:GetRankingContext();
-        local _, specName = GetSpecializationInfoByID(specId or 0);
+    local _, _, specId = Addon:GetRankingContext();
+    if (not Addon:GetSetting("showAllSpecs") and specId and specId ~= 0 and Addon:HasAnyDungeonFavorites()) then
+        local _, specName = GetSpecializationInfoByID(specId);
         self:ShowMessage(string.format("No favorites for %s", specName or "this spec"),
             "This character has dungeon favorites on its other specs. \"All specs\" is off, "
             .. "so only this spec's favorites are ranked.",
@@ -891,16 +885,19 @@ function KSLBestDungeonEntryMixin:Init(rank, dungeonData, rowWidth)
     local scoreText = string.format("Score: %.0f  |  Items: %d", dungeonData.stats.score, dungeonData.stats.totalItems);
     self.ScoreText:SetText(scoreText);
 
-    -- "[icon] 5 BiS  [icon] 3 Must", best tier first, in KeystoneLoot's tier icons.
+    -- "[icon] 1   [icon] 1   [icon] 2", best tier first, in KeystoneLoot's tier icons.
+    -- Icon and count only: with names ("1 BiS 1 Catalyst 2 Must") three tiers already
+    -- overflowed the 140px text column and were cut off. The score key along the bottom
+    -- names each icon, and the row tooltip spells the tiers out.
     local tierParts = {};
     local counts = dungeonData.tiers or {};
     for _, tier in ipairs(TIER_ORDER) do
         local count = counts[tier] or 0;
         if (count > 0) then
-            table.insert(tierParts, string.format("%s%d %s", TierIcon(tier, 12), count, TIER_SHORT_NAME[tier]));
+            table.insert(tierParts, string.format("%s %d", TierIcon(tier, 12), count));
         end
     end
-    self.TierText:SetText(table.concat(tierParts, "  "));
+    self.TierText:SetText(table.concat(tierParts, "   "));
 
     -- Item icons, wrapped onto as many lines as they need.
     local container = self.IconContainer;

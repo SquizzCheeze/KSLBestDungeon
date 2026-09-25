@@ -19,14 +19,6 @@ local TIER_BIS = 3;
 local TIER_TRANSMOG = 4;
 local TIER_CATALYST = 5;
 
-local TIER_NAME = {
-    [TIER_NICE] = "Nice to have",
-    [TIER_MUST] = "Must have",
-    [TIER_BIS] = "Best in Slot",
-    [TIER_TRANSMOG] = "Transmog",
-    [TIER_CATALYST] = "Catalyst",
-};
-
 local TIER_WEIGHT = {
     [TIER_BIS] = 100,
     [TIER_MUST] = 50,
@@ -107,31 +99,37 @@ function Addon:ResetSettings()
     KSLBestDungeonDB.settings = CopyTable(DEFAULT_SETTINGS);
 end
 
--- Get the currently selected character's class and spec
+-- The class and spec the ranking is for: the character selected in KSL (which may
+-- be an alt, not the one logged in), and the spec picked in KSL's class menu.
+--
+-- Mirrors KSL's own GetFavoritesListSpecId (modules/query.lua): the class menu's spec
+-- only counts when that menu is showing the selected character's class; otherwise
+-- the spec is 0, meaning all specs. KSL's character picker sets exactly that when you
+-- switch to an alt (filters.classId = alt's class, filters.specId = 0).
+--
+-- This used to treat spec 0 as "unknown" and fall back to the LOGGED-IN character's
+-- class and spec, so selecting a Paladin alt from a Hunter ranked "Beast Mastery
+-- only" and found nothing with All specs off.
+--
+-- Returns classId, specId; specId 0 = all specs. nil, nil with no character selected.
 local function GetCurrentCharacterInfo()
     local characterKey = KeystoneLootCharDB and KeystoneLootCharDB.ui and KeystoneLootCharDB.ui.selectedCharacterKey;
     if (not characterKey) then
         return nil, nil;
     end
 
-    local name, realm = strsplit("-", characterKey);
-    local classId, specId;
+    -- Key is "Realm-Name-ClassId"; parsed from the right since realms can contain hyphens.
+    local classId = tonumber(characterKey:match("%-(%d+)$"));
 
-    -- Try to get from filters (what the user is currently viewing)
-    local filterClassId = KeystoneLootCharDB.filters and KeystoneLootCharDB.filters.classId;
-    local filterSpecId = KeystoneLootCharDB.filters and KeystoneLootCharDB.filters.specId;
+    local filters = KeystoneLootCharDB.filters;
+    local filterClassId = filters and filters.classId;
+    local filterSpecId = filters and filters.specId;
 
-    if (filterClassId and filterSpecId and filterSpecId ~= 0) then
-        return filterClassId, filterSpecId;
+    if (classId and filterClassId == classId and filterSpecId and filterSpecId ~= 0) then
+        return classId, filterSpecId;
     end
 
-    -- Fallback: use current player's class/spec. UnitClass returns name, file, ID:
-    -- the numeric ID is the THIRD value, matching KSL's filters.classId. The second
-    -- is the class file ("HUNTER"), which this used to return by mistake.
-    local _, _, playerClassId = UnitClass("player");
-    local playerSpecId = C_SpecializationInfo.GetSpecializationInfo(C_SpecializationInfo.GetSpecialization() or 1);
-
-    return playerClassId, playerSpecId;
+    return classId, 0;
 end
 
 -- ============================================================
@@ -336,8 +334,9 @@ local function GetAllFavorites()
             local dungeonName = name or ("Dungeon " .. challengeModeId);
 
             for currentSpecId, specData in pairs(sourceData) do
-                -- If showAllSpecs is false, only include current spec
-                if (GetSetting("showAllSpecs") or currentSpecId == specId) then
+                -- If showAllSpecs is false, only include the spec picked in KSL -- unless
+                -- KSL itself is on all specs (0), e.g. just after switching to an alt.
+                if (GetSetting("showAllSpecs") or specId == 0 or currentSpecId == specId) then
                     for itemId, itemInfo in pairs(specData) do
                         local tier = itemInfo.tier or TIER_MUST;
 
@@ -512,50 +511,6 @@ function Addon:HasAnyDungeonFavorites()
     return false;
 end
 
--- Get item info (uses WoW API for icon/name)
--- Optional bonusId parameter to get item info at specific item level (same method as KSL)
-function Addon:GetItemInfo(itemId, bonusId)
-    local itemLink = "item:" .. itemId;
-    if (bonusId) then
-        itemLink = itemLink .. ":" .. bonusId;
-    end
-    local name, link, quality, ilvl, reqLevel, class, subclass, maxStack, equipSlot, icon, vendorPrice = C_Item.GetItemInfo(itemLink);
-    if (name) then
-        return { name = name, link = link, icon = icon, quality = quality, ilvl = ilvl };
-    end
-    return nil;
-end
-
--- Get item info from a full item link (for icons at correct ilvl)
-function Addon:GetItemInfoFromLink(itemLink)
-    local name, link, quality, ilvl, reqLevel, class, subclass, maxStack, equipSlot, icon, vendorPrice = C_Item.GetItemInfo(itemLink);
-    if (name) then
-        return { name = name, link = link, icon = icon, quality = quality, ilvl = ilvl };
-    end
-    return nil;
-end
-
--- Format tier counts for display
-function Addon:FormatTierCounts(dungeonData)
-    local parts = {};
-    if (dungeonData.stats.bisCount > 0) then
-        table.insert(parts, string.format("|cff00ff00%d BiS|r", dungeonData.stats.bisCount));
-    end
-    if (dungeonData.stats.mustCount > 0) then
-        table.insert(parts, string.format("|cffffff00%d Must|r", dungeonData.stats.mustCount));
-    end
-    if (dungeonData.stats.niceCount > 0) then
-        table.insert(parts, string.format("|cff00ffff%d Nice|r", dungeonData.stats.niceCount));
-    end
-    if (dungeonData.stats.catalystCount > 0) then
-        table.insert(parts, string.format("|cffa335ee%d Cata|r", dungeonData.stats.catalystCount));
-    end
-    if (dungeonData.stats.transmogCount > 0) then
-        table.insert(parts, string.format("|cff808080%d TMog|r", dungeonData.stats.transmogCount));
-    end
-    return table.concat(parts, "  ");
-end
-
 _G.KSLBestDungeon = Addon;
 
 -- ============================================================
@@ -641,24 +596,11 @@ local function HookIntoKeystoneLoot()
     Addon.KSLFrame = KSLFrame;
     Addon.RankingsFrame = rankingsFrame;
 
-    -- Hook KSL frame OnShow to refresh our data when tab is shown
-    local originalOnShow = KSLFrame:GetScript("OnShow");
-    KSLFrame:SetScript("OnShow", function(self, ...)
-        if (originalOnShow) then
-            originalOnShow(self, ...);
-        end
-        -- Refresh our rankings frame if our tab is active
-        if (KSLFrame.tabSystem and KSLFrame.tabSystem.GetSelectedTab and KSLFrame.tabSystem:GetSelectedTab() == tabId) then
-            rankingsFrame:Refresh();
-        end
-    end);
-
-    -- Also hook SetTab to refresh when our tab is selected
-    hooksecurefunc(KSLFrame, "SetTab", function(self, tabIdArg)
-        if (tabIdArg == tabId and rankingsFrame.Refresh) then
-            rankingsFrame:Refresh();
-        end
-    end);
+    -- No hooks on KSL's frame are needed to keep the list fresh: the rankings frame's
+    -- own OnShow (wired in Init) fires both when our tab is selected and when KSL's
+    -- window opens with our tab already selected, and it refreshes. This used to also
+    -- wrap KSLFrame's OnShow script and hooksecurefunc its SetTab, which rebuilt the
+    -- list three times on every open.
 
     return true;
 end
@@ -672,21 +614,18 @@ local function TryHook()
     return false;
 end
 
+-- Start hooking at login, unconditionally. TryHook retries until KSL's tab system
+-- exists, which KSL only builds after its own DB:Init at PLAYER_ENTERING_WORLD.
+--
+-- This used to start only if KeystoneLootDB already existed at PLAYER_LOGIN. On
+-- someone's first ever session with KeystoneLoot it does not (KSL creates it later),
+-- so the tab never appeared until a /reload. KeystoneLoot is a hard dependency in the
+-- TOC, so it is always loaded before this file and there is nothing else to wait for.
 local initFrame = CreateFrame("Frame");
 initFrame:RegisterEvent("PLAYER_LOGIN");
-initFrame:RegisterEvent("ADDON_LOADED");
-
-initFrame:SetScript("OnEvent", function(self, event, arg1)
-    if (event == "PLAYER_LOGIN") then
-        -- All addon files are loaded by now, and KeystoneLoot should be loaded
-        if (KeystoneLootDB and KeystoneLootCharDB) then
-            -- Try to hook (will retry until KSL's tab system is ready)
-            TryHook();
-        end
-    elseif (event == "ADDON_LOADED" and arg1 == "KeystoneLoot") then
-        -- KeystoneLoot just loaded, try to hook
-        C_Timer.After(0.5, TryHook);
-    end
+initFrame:SetScript("OnEvent", function(self)
+    self:UnregisterEvent("PLAYER_LOGIN");
+    TryHook();
 end);
 
 -- Slash command to open KSL and select our tab
