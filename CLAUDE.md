@@ -41,13 +41,24 @@ CurseForge (project `1599575`, read from `## X-Curse-Project-ID` in the TOC) and
 GitHub release. Ordinary pushes to `main` publish nothing. Running the workflow manually from the Actions
 tab is a dry run: it builds the zip and uploads nothing.
 
-- Bump `## Version` in the TOC, then `git tag -a v1.X -m "V1.X"` and `git push origin v1.X`.
-- Add a `RELEASE_NOTES["<version>"]` entry in `welcome.lua`: a few player-facing highlights, NOT a copy
-  of the changelog. It is keyed by the TOC version string. A missing entry is not fatal (the update note
-  still appears, without bullets), which is exactly why it is easy to forget.
+Release checklist, in order:
+
+1. While developing: add each user-visible change to `changelog.txt` under the upcoming `V1.X` heading,
+   and a short player-facing line to `RELEASE_NOTES["1.X"]` in `welcome.lua` (highlights, NOT a copy of
+   the changelog; keyed by the TOC version string). A missing `RELEASE_NOTES` entry is not fatal -- the
+   update note still appears, without bullets -- which is exactly why it is easy to forget.
+2. Set `## Version: 1.X` in the TOC.
+3. Commit and push `main`, then `git tag -a v1.X -m "V1.X"` and `git push origin v1.X`. Check the run
+   under Actions (no `gh` here; `https://api.github.com/repos/SquizzCheeze/KSLBestDungeon/actions/runs`).
+4. After tagging: move the `V1.X` section from `changelog.txt` to the top of `CHANGELOG-ARCHIVE.txt`
+   (headed `V1.X - <date>`) and leave `changelog.txt` with the next version's heading. The release is
+   built from the tagged commit, so this cannot affect it.
+
 - `changelog.txt` is uploaded **verbatim** as that release's CurseForge notes, so it must hold only the
-  version being released. Older sections move to `CHANGELOG-ARCHIVE.txt`, which `.pkgmeta` ignores so it
-  never ships. Leaving history in `changelog.txt` makes every release repost the entire backlog.
+  version being released. Leaving history in it makes every release repost the entire backlog.
+- A version number cannot be re-uploaded to CurseForge. A fix after tagging is a new version.
+
+Released: v1.4 (2026-09-25) was the first release through this pipeline.
 - What ships is controlled by the `ignore:` list in `.pkgmeta`, not by `.gitignore`. Dev files
   (`CLAUDE.md`, `README.md`, `.vscode`, `.github`, `.claude`, the changelog archive) are excluded there;
   `LICENSE` and `changelog.txt` deliberately are not.
