@@ -27,6 +27,12 @@ Added:
   of each item, in each dungeon's summary, in the score key and in tooltips. The
   summary used to be coloured text in a colour scheme of its own.
 
+- The ranking follows KeystoneLoot's Slot menu. Pick Trinket there and Best
+  Dungeons ranks dungeons by your trinket favorites only; Favorites or All slots
+  ranks every slot. Multi-slot selections and weapon types work the same as on
+  KeystoneLoot's Dungeons tab. The top line shows the slot when one is picked.
+  It used to be ignored: changing it did nothing here.
+
 - When the list is empty it now says why, with a button to fix it. Every case
   used to say "No favorites found", even when favorites existed and a setting
   was hiding them:
@@ -34,6 +40,8 @@ Added:
     a Show all dungeons button.
   - "All specs" off and this spec has none, though other specs do: a Show all
     specs button.
+  - KeystoneLoot's Slot menu excluding every favorite: which slot is picked,
+    and how to rank every slot again.
   - Nothing favorited yet: how to add favorites in KeystoneLoot, with a Go to
     Dungeons button.
 

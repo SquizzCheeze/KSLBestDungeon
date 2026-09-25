@@ -140,11 +140,21 @@ checkboxes and dropdown texts from settings, so anything that changes settings o
 KeystoneLootDB.favorites[characterKey][sourceId][specId][itemId] = { tier, bonusIds, gems, enchant }
   → GetAllFavorites()      groups by challengeModeId, resolves names via C_ChallengeMode.GetMapUIInfo
                            and de-duplicates by itemId: an item favorited on several specs counts
-                           ONCE, at its highest TIER_RANK (BiS > Catalyst > Must > Nice > Transmog)
+                           ONCE, at its highest TIER_RANK (BiS > Catalyst > Must > Nice > Transmog);
+                           and drops items outside KSL's Slot filter (GetSlotFilter, below)
   → CalculateDungeonScore() sums TIER_WEIGHT (BiS 100 / Catalyst 100 / Must 50 / Nice 10 / Transmog 1)
   → Addon:GetRankedDungeons() filters by minFavorites, sorts by settings.sortBy
   → RankingsFrameMixin:Refresh() rebuilds the list
 ```
+
+**KSL's Slot filter.** The ranking follows the Slot dropdown in KSL's header. `GetSlotFilter()` in the core
+mirrors KSL's `Query:GetDungeonItems` (`modules/query.lua`): Favorites (-1) = everything; All slots (-2) =
+everything minus slot 14 (Other) when `settings.hideOtherItems`; otherwise one `filters.slotId`, or
+any ticked `filters.slotIds` when `settings.multiSlotFilter`; `filters.weaponTypes` narrows main-hand
+(slot 10) weapons only. Each item's slot comes from `KeystoneLootAPI:GetItemInfo(itemId).slotId`, KSL's own
+data. KSL's filter state is **read only** -- never write `KeystoneLootCharDB.filters`: that bypasses KSL's DB
+observers and leaves its dropdown out of step, which is why the empty-list message for it has no button.
+If KSL changes its filter semantics, update `GetSlotFilter`/`ItemPassesSlotFilter` to match.
 
 `sourceId` keys are filtered with `type(sourceId) == "number" and sourceId > 0 and sourceId < 1000` —
 that heuristic is how dungeon `challengeModeId`s are separated from raid/other source keys. Dungeon
@@ -164,7 +174,7 @@ back gracefully on an unrecognised tier rather than indexing a nil.
 favorites being added/removed/retiered/imported but *not* the character or spec filter changing. So
 there is also a **1-second `C_Timer.NewTicker` polling fallback** that diffs `GetFavoritesHash()` and
 refreshes on change. That hash is `Addon:GetFilterStateKey()` (selected character + resolved
-class/spec + `showAllSpecs`) followed by a sorted concat of `sourceId:specId:itemId:tier`. **Both
+class/spec + `showAllSpecs` + KSL's Slot filter state) followed by a sorted concat of `sourceId:specId:itemId:tier`. **Both
 halves matter**: changing spec never touches the favorites tables, so without the state key the list
 silently stays on the previous spec. If you change the favorites schema or add another input to the
 ranking, update `GetFavoritesHash()` too or live updates stop.

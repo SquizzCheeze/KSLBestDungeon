@@ -134,6 +134,160 @@ local function GetCurrentCharacterInfo()
     return playerClassId, playerSpecId;
 end
 
+-- ============================================================
+-- KeystoneLoot's Slot filter
+--
+-- The ranking follows the Slot dropdown in KSL's header, mirroring KSL's own
+-- Query:GetDungeonItems (modules/query.lua) so both tabs agree on what is included:
+--   Favorites (-1)       everything
+--   All slots (-2)       everything, minus the Other slot if KSL's hideOtherItems is on
+--   one slot / several   items in that slot, or any ticked slot (multiSlotFilter)
+--   weapon types         narrow main-hand weapons only, when any are ticked
+-- An item's slot is KSL's own, from KeystoneLootAPI:GetItemInfo(). Items KSL does not
+-- know (custom items) have no slot and so only pass Favorites / All slots, as in KSL.
+--
+-- KSL's filter state is read, never written: writing KeystoneLootCharDB directly
+-- would bypass KSL's DB observers and leave its dropdown out of step.
+-- ============================================================
+local SLOT_FAVORITES = -1;
+local SLOT_ALL = -2;
+local SLOT_OTHER = 14;     -- Enum.ItemSlotFilterType.Other
+local SLOT_MAIN_HAND = 10; -- Enum.ItemSlotFilterType.MainHand, KSL's WEAPON_SLOT
+
+-- Slot names by KSL slotId + 1, in the order of KSL's Slot dropdown.
+local SLOT_NAMES = {
+    INVTYPE_HEAD, INVTYPE_NECK, INVTYPE_SHOULDER, INVTYPE_CLOAK, INVTYPE_CHEST,
+    INVTYPE_WRIST, INVTYPE_HAND, INVTYPE_WAIST, INVTYPE_LEGS, INVTYPE_FEET,
+    INVTYPE_WEAPONMAINHAND, INVTYPE_WEAPONOFFHAND, INVTYPE_FINGER, INVTYPE_TRINKET,
+    EJ_LOOT_SLOT_FILTER_OTHER,
+};
+
+-- As KSL's RANGED_WEAPON_SUBCLASSES: ranged weapons count as two-handed.
+local RANGED_WEAPON_SUBCLASSES = {
+    [Enum.ItemWeaponSubclass.Bows] = true,
+    [Enum.ItemWeaponSubclass.Guns] = true,
+    [Enum.ItemWeaponSubclass.Crossbow] = true,
+};
+
+-- As KSL's Query:GetWeaponType.
+local function GetWeaponType(itemId)
+    local _, _, _, equipLoc, _, _, subclassId = C_Item.GetItemInfoInstant(itemId);
+    if (subclassId == Enum.ItemWeaponSubclass.Dagger) then
+        return "dagger";
+    end
+    if (equipLoc == "INVTYPE_2HWEAPON" or RANGED_WEAPON_SUBCLASSES[subclassId]) then
+        return "twoHand";
+    end
+    return "oneHand";
+end
+
+-- The active Slot filter, or nil when everything is included.
+-- { slotId = n } | { slotIds = { [n] = true } } | { hideOther = true }, plus weaponTypes.
+local function GetSlotFilter()
+    local filters = KeystoneLootCharDB and KeystoneLootCharDB.filters;
+    local settings = KeystoneLootDB and KeystoneLootDB.settings or {};
+    local slotId = filters and filters.slotId;
+
+    if (slotId == nil or slotId == SLOT_FAVORITES) then
+        return nil;
+    end
+
+    local weaponTypes = filters.weaponTypes;
+    if (type(weaponTypes) ~= "table" or not next(weaponTypes)) then
+        weaponTypes = nil;
+    end
+
+    if (slotId == SLOT_ALL) then
+        if (settings.hideOtherItems) then
+            return { hideOther = true, weaponTypes = weaponTypes };
+        end
+        return weaponTypes and { weaponTypes = weaponTypes } or nil;
+    end
+
+    if (settings.multiSlotFilter and type(filters.slotIds) == "table") then
+        for _, selected in pairs(filters.slotIds) do
+            if (selected) then
+                return { slotIds = filters.slotIds, weaponTypes = weaponTypes };
+            end
+        end
+    end
+
+    return { slotId = slotId, weaponTypes = weaponTypes };
+end
+
+local function ItemPassesSlotFilter(itemId, filter)
+    if (not filter) then return true; end
+
+    local API = _G.KeystoneLootAPI;
+    local info = API and API.GetItemInfo and API:GetItemInfo(itemId);
+    local itemSlot = info and info.slotId;
+
+    local slotMatches;
+    if (filter.slotIds) then
+        slotMatches = itemSlot ~= nil and filter.slotIds[itemSlot] == true;
+    elseif (filter.slotId) then
+        slotMatches = itemSlot == filter.slotId;
+    else
+        slotMatches = not (filter.hideOther and itemSlot == SLOT_OTHER);
+    end
+    if (not slotMatches) then return false; end
+
+    if (filter.weaponTypes and itemSlot == SLOT_MAIN_HAND) then
+        return filter.weaponTypes[GetWeaponType(itemId)] == true;
+    end
+    return true;
+end
+
+function Addon:IsSlotFilterActive()
+    return GetSlotFilter() ~= nil;
+end
+
+-- Short description of the active Slot filter for the context line ("Trinket",
+-- "Head + 2"), or nil when every slot is included.
+function Addon:GetSlotFilterLabel()
+    local filter = GetSlotFilter();
+    if (not filter) then return nil; end
+
+    if (filter.slotId) then
+        return SLOT_NAMES[filter.slotId + 1] or "one slot";
+    end
+
+    if (filter.slotIds) then
+        local first, count;
+        count = 0;
+        for slot = 0, #SLOT_NAMES - 1 do
+            if (filter.slotIds[slot]) then
+                count = count + 1;
+                first = first or SLOT_NAMES[slot + 1];
+            end
+        end
+        if (count <= 1) then return first; end
+        return string.format("%s + %d", first or "?", count - 1);
+    end
+
+    -- All slots, narrowed only by Other items being hidden and/or weapon types.
+    return nil;
+end
+
+-- For the poll hash: the Slot filter changes in KSL's header without touching the
+-- favorites tables, so it has to be part of the state key like the spec is.
+local function GetSlotFilterStateKey()
+    local filters = KeystoneLootCharDB and KeystoneLootCharDB.filters or {};
+    local settings = KeystoneLootDB and KeystoneLootDB.settings or {};
+    local parts = { tostring(filters.slotId), tostring(settings.multiSlotFilter), tostring(settings.hideOtherItems) };
+    for _, list in ipairs({ filters.slotIds, filters.weaponTypes }) do
+        local keys = {};
+        if (type(list) == "table") then
+            for k, v in pairs(list) do
+                if (v) then table.insert(keys, tostring(k)); end
+            end
+        end
+        table.sort(keys);
+        table.insert(parts, table.concat(keys, "+"));
+    end
+    return table.concat(parts, "/");
+end
+
 -- Who and what the ranking is for, for the toolbar's context line.
 function Addon:GetRankingContext()
     local characterKey = KeystoneLootCharDB and KeystoneLootCharDB.ui and KeystoneLootCharDB.ui.selectedCharacterKey;
@@ -148,8 +302,8 @@ end
 function Addon:GetFilterStateKey()
     local characterKey = KeystoneLootCharDB and KeystoneLootCharDB.ui and KeystoneLootCharDB.ui.selectedCharacterKey;
     local classId, specId = GetCurrentCharacterInfo();
-    return string.format("%s:%s:%s:%s", tostring(characterKey), tostring(classId), tostring(specId),
-        tostring(GetSetting("showAllSpecs")));
+    return string.format("%s:%s:%s:%s:%s", tostring(characterKey), tostring(classId), tostring(specId),
+        tostring(GetSetting("showAllSpecs")), GetSlotFilterStateKey());
 end
 
 -- Get all favorites for the current character/spec across all dungeons
@@ -170,6 +324,7 @@ local function GetAllFavorites()
     end
 
     local result = {};
+    local slotFilter = GetSlotFilter();
 
     for sourceId, sourceData in pairs(favorites[characterKey]) do
         -- Only process dungeon sources (challengeModeId numbers)
@@ -186,46 +341,51 @@ local function GetAllFavorites()
                     for itemId, itemInfo in pairs(specData) do
                         local tier = itemInfo.tier or TIER_MUST;
 
-                        if (not result[challengeModeId]) then
-                            result[challengeModeId] = {
-                                dungeon = {
-                                    challengeModeId = challengeModeId,
-                                    name = dungeonName,
-                                },
-                                items = {},
-                                itemsById = {},
-                                tiers = { [TIER_BIS] = 0, [TIER_MUST] = 0, [TIER_NICE] = 0, [TIER_CATALYST] = 0, [TIER_TRANSMOG] = 0 },
-                            };
-                        end
+                        -- KSL's Slot filter; see GetSlotFilter(). Checked before the
+                        -- dungeon entry is created, so a dungeon with no favorite in the
+                        -- filtered slots does not appear at all.
+                        if (ItemPassesSlotFilter(itemId, slotFilter)) then
+                            if (not result[challengeModeId]) then
+                                result[challengeModeId] = {
+                                    dungeon = {
+                                        challengeModeId = challengeModeId,
+                                        name = dungeonName,
+                                    },
+                                    items = {},
+                                    itemsById = {},
+                                    tiers = { [TIER_BIS] = 0, [TIER_MUST] = 0, [TIER_NICE] = 0, [TIER_CATALYST] = 0, [TIER_TRANSMOG] = 0 },
+                                };
+                            end
 
-                        local dungeon = result[challengeModeId];
-                        -- Tolerate tiers KeystoneLoot adds that we do not know about yet
-                        local tiers = dungeon.tiers;
-                        local existing = dungeon.itemsById[itemId];
+                            local dungeon = result[challengeModeId];
+                            -- Tolerate tiers KeystoneLoot adds that we do not know about yet
+                            local tiers = dungeon.tiers;
+                            local existing = dungeon.itemsById[itemId];
 
-                        if (not existing) then
-                            local item = {
-                                itemId = itemId,
-                                tier = tier,
-                                specId = currentSpecId,
-                                -- Keep original bonusIds for reference
-                                bonusIds = itemInfo.bonusIds,
-                                gems = itemInfo.gems,
-                                enchant = itemInfo.enchant,
-                            };
-                            table.insert(dungeon.items, item);
-                            dungeon.itemsById[itemId] = item;
-                            tiers[tier] = (tiers[tier] or 0) + 1;
-                        elseif ((TIER_RANK[tier] or 0) > (TIER_RANK[existing.tier] or 0)) then
-                            -- The same item favorited on another spec (All specs): it counts
-                            -- ONCE, at the best tier any spec gave it.
-                            tiers[existing.tier] = tiers[existing.tier] - 1;
-                            tiers[tier] = (tiers[tier] or 0) + 1;
-                            existing.tier = tier;
-                            existing.specId = currentSpecId;
-                            existing.bonusIds = itemInfo.bonusIds;
-                            existing.gems = itemInfo.gems;
-                            existing.enchant = itemInfo.enchant;
+                            if (not existing) then
+                                local item = {
+                                    itemId = itemId,
+                                    tier = tier,
+                                    specId = currentSpecId,
+                                    -- Keep original bonusIds for reference
+                                    bonusIds = itemInfo.bonusIds,
+                                    gems = itemInfo.gems,
+                                    enchant = itemInfo.enchant,
+                                };
+                                table.insert(dungeon.items, item);
+                                dungeon.itemsById[itemId] = item;
+                                tiers[tier] = (tiers[tier] or 0) + 1;
+                            elseif ((TIER_RANK[tier] or 0) > (TIER_RANK[existing.tier] or 0)) then
+                                -- The same item favorited on another spec (All specs): it counts
+                                -- ONCE, at the best tier any spec gave it.
+                                tiers[existing.tier] = tiers[existing.tier] - 1;
+                                tiers[tier] = (tiers[tier] or 0) + 1;
+                                existing.tier = tier;
+                                existing.specId = currentSpecId;
+                                existing.bonusIds = itemInfo.bonusIds;
+                                existing.gems = itemInfo.gems;
+                                existing.enchant = itemInfo.enchant;
+                            end
                         end
                     end
                 end

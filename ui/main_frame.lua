@@ -293,7 +293,9 @@ function KSLBestDungeonRankingsFrameMixin:CreateToolbar()
         "Dungeons are ranked by the favorites of the character selected in KeystoneLoot "
         .. "(the character icon at the top).\n\n"
         .. "With \"All specs\" ticked, favorites from every spec count. Untick it to rank "
-        .. "only for the spec picked in KeystoneLoot's class menu.");
+        .. "only for the spec picked in KeystoneLoot's class menu.\n\n"
+        .. "It also follows KeystoneLoot's Slot menu: pick Trinket there to rank dungeons "
+        .. "by your trinket favorites only. Favorites or All slots ranks every slot.");
     toolbar.Context = context;
 
     -- Row 2: Sort
@@ -453,7 +455,12 @@ function KSLBestDungeonRankingsFrameMixin:UpdateToolbar()
         specText = (specName or "current spec") .. " only";
     end
 
-    toolbar.Context.Text:SetText("Ranking " .. name .. "  |cff808080·|r  " .. specText);
+    local text = "Ranking " .. name .. "  |cff808080·|r  " .. specText;
+    local slotLabel = Addon:GetSlotFilterLabel();
+    if (slotLabel) then
+        text = text .. "  |cff808080·|r  " .. slotLabel;
+    end
+    toolbar.Context.Text:SetText(text);
 end
 
 -- Get Battle.net account ID by BattleTag from friends list (kept for backward compatibility)
@@ -647,6 +654,17 @@ function KSLBestDungeonRankingsFrameMixin:ShowEmptyReason(candidates)
                 Addon:SetSetting("minFavorites", 1);
                 frame:Refresh();
             end);
+        return;
+    end
+
+    -- KSL's Slot filter excludes every favorite. No button: KSL's filter state is only
+    -- read here, never written (see GetSlotFilter in the core file).
+    if (Addon:IsSlotFilterActive() and Addon:HasAnyDungeonFavorites()) then
+        local slotLabel = Addon:GetSlotFilterLabel();
+        self:ShowMessage(slotLabel and string.format("No favorites in %s", slotLabel)
+                or "No favorites match the Slot filter",
+            "This list follows the Slot menu at the top of KeystoneLoot. Pick Favorites or "
+            .. "All slots there to rank every slot.");
         return;
     end
 
