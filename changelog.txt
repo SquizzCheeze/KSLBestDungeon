@@ -1,0 +1,15 @@
+KSLBestDungeon Changelog
+========================
+
+V1.4
+
+Added:
+
+- /rl as a shortcut for reloading your interface, the same as /reload. It is
+  only claimed if no other addon already provides it, so an existing one keeps
+  its own version.
+
+Changed:
+
+- Declares support for patch 12.1.5 alongside 12.1.0, so it loads on the
+  12.1.5 client without being marked out of date.

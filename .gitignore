@@ -1,0 +1,25 @@
+# Claude Code local settings -- machine-specific paths and permission grants.
+# CLAUDE.md itself IS tracked; only the local overrides are ignored.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# Packager output and packaged builds
+.release/
+*.zip
+
+# Editor / merge leftovers
+*.bak
+*.old
+*.orig
+*.rej
+*~
+
+# OS junk
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# WoW writes these next to the AddOn folder, never inside it -- listed
+# defensively in case anything ever drops one here.
+*.wtf
+SavedVariables/

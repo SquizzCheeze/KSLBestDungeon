@@ -1,0 +1,94 @@
+KSLBestDungeon Changelog Archive
+================================
+
+Shipped versions before the current one. The packager reads changelog.txt
+verbatim (see manual-changelog in .pkgmeta), so that file holds only the
+version being built -- otherwise every CurseForge release reposts the whole
+history as its release notes. Older sections move here instead of being
+deleted: many carry root-cause writeups worth grepping before assuming a bug
+is fresh. This file is in the .pkgmeta ignore list, so it never ships.
+
+1.3 - 2026-08-19
+
+### Fixed
+
+- **Lua error on any Catalyst favorite** ("attempt to perform arithmetic on field '?'"
+  at `KSLBestDungeon.lua:155`), which left the Best Dungeons list empty. KeystoneLoot
+  added a fifth tier, `TIER_CATALYST = 5`, and the per-dungeon tier counter table was
+  only seeded for tiers 1-4, so the first Catalyst item incremented a `nil`. Catalyst is
+  now a known tier throughout - counted, scored (weight 5, between Nice and Transmog,
+  matching KeystoneLoot's own tier order), and shown as a purple `N Cata` in the tier
+  summary. The counter and the scoring loop also tolerate unknown tiers now, so the next
+  tier KeystoneLoot adds degrades instead of erroring.
+
+- **The list did not follow spec changes** - switching spec in KeystoneLoot or in-game
+  kept showing the previous spec's ranking until a `/reload`. The poll hash was built
+  only from the favorites data, which a spec change never touches. It now includes the
+  selected character and the active class/spec filter (`Addon:GetFilterStateKey()`).
+
+- **The poll ticker never restarted after the tab was hidden.** `OnShow`/`OnHide` were
+  defined on the rankings mixin but never wired as scripts, because the mixin is copied
+  onto a plain `CreateFrame()` frame instead of applied from an XML template. They are
+  registered explicitly now, and `OnShow` restarts the ticker and refreshes.
+
+1.2 - 2026-08-13
+
+### Fixed
+
+- **Item levels in the Best Dungeons tab were wrong.** Items showed their base item
+  level and base quality colour (e.g. Fireproof Drape as an uncommon ilvl 53 instead of
+  an epic ilvl 318) no matter what was picked in KeystoneLoot's item level dropdown.
+
+  Root cause: the addon looked up KeystoneLoot's `Upgrade` module through
+  `_G.KeystoneLoot`, but that global does not exist — KeystoneLoot keeps its modules on
+  an addon-private table and only publishes `_G.KeystoneLootAPI`. The lookup was
+  silently `nil`, so every item link fell through to a bare `item:<id>`.
+
+  Item icons are now built from KeystoneLoot's own global button template
+  (`KeystoneLootLootIconButtonTemplate`), whose handlers run inside KeystoneLoot and
+  therefore always scale to the selected item level.
+
+- **"No favorites found" stayed on screen after adding favorites**, overlapping the
+  dungeon list until a `/reload`. The refresh only released the container's child
+  frames; the status messages are FontStrings, which are regions rather than children,
+  so they were never cleaned up and stacked with every refresh. A single reusable
+  message FontString is now hidden at the start of each refresh.
+
+- **Live updates relied entirely on the 1-second poll.** The KeystoneLoot database
+  observers registered at startup never attached — same `_G.KeystoneLoot` cause as
+  above. The addon now subscribes to `KeystoneLootAPI`'s `FAVORITES_CHANGED` event. The
+  poll is kept as a fallback, since that event does not fire when the character or spec
+  filter changes in KeystoneLoot.
+
+- **The item level line was missing from tooltips.** Both the row tooltip and the icon
+  tooltips were supposed to show the selected upgrade track; that code sat behind the
+  same dead `_G.KeystoneLoot` check and never ran.
+
+- **`/kslbd debugui` printed nothing about KeystoneLoot's state** for the same reason.
+  It now reports whether the KeystoneLoot API is present, plus the selected tab and the
+  current dungeon track and rank.
+
+### Changed
+
+- Item icons gain KeystoneLoot's own behaviour, since they are now its buttons:
+  right-click sets the favorite tier, shift-click links the item at the correct item
+  level, and the voidcore indicator appears where relevant.
+- Icons are 34px with 2px spacing (the KeystoneLoot template's native size), previously
+  32px with 4px spacing. The tier-coloured border is kept, because KeystoneLoot's own
+  tier corner icon only appears for the spec currently filtered there, which would leave
+  cross-spec items unmarked when "Show All Specs" is on.
+- The row tooltip lists plain item names instead of item links. A link built here would
+  show the wrong item level, and hovering an individual icon now gives the full,
+  correct tooltip.
+
+### Removed
+
+- Unused `KSLBestDungeonTabButtonTemplate` and `KSLBestDungeonRankingsFrameTemplate`
+  from `ui/main_frame.xml`. Nothing referenced them — the rankings frame is built in
+  code.
+
+### Documentation
+
+- Added `CLAUDE.md` covering the addon's architecture, the KeystoneLoot tab injection,
+  and specifically which parts of KeystoneLoot are reachable from another addon and
+  which are not.

@@ -1,0 +1,20 @@
+## Interface: 120100, 120105
+## Title: |cff9d5db8KSLBestDungeon|r
+## Notes: Ranks Mythic+ dungeons by your KeystoneLoot favorites for optimal rolling
+## Author: Squizzcheeze
+## X-License: MIT
+## X-Curse-Project-ID: 1599575
+## X-Flavor: Mainline
+## Version: 1.4
+## OptionalDeps: KeystoneLoot, LibStub
+## SavedVariables: KSLBestDungeonDB
+## SavedVariablesPerCharacter: KSLBestDungeonCharDB
+
+# UI (templates must load first)
+ui/main_frame.xml
+
+# Core
+KSLBestDungeon.lua
+
+# UI mixins
+ui/main_frame.lua
