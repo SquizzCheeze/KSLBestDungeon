@@ -18,3 +18,6 @@ KSLBestDungeon.lua
 
 # UI mixins
 ui/main_frame.lua
+
+# First-run greeting and release notes
+welcome.lua

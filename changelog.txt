@@ -5,6 +5,28 @@ V1.4
 
 Added:
 
+- A toolbar along the top of the Best Dungeons tab. Sort, All specs, Weight by
+  tier and Min items used to sit in an unlabelled dropdown that was easy to miss
+  entirely; they are now visible controls, and hovering any of them explains
+  what it does.
+
+- A line at the top of the tab saying whose favorites are being ranked (the
+  character selected in KeystoneLoot, in class colour) and whether that is all
+  specs or one spec only.
+
+- Share button. Posts the ranking to party, instance, guild, say, yell, a
+  character by name, or a Battle.net friend. Channels you cannot use right now
+  are greyed out with the reason instead of failing with a game error, and the
+  confirmation says "Sent to Party" rather than "Sent to PARTY".
+
+- Defaults button, which puts the ranking options back without reloading your
+  interface. /kslbd reset still wipes everything and reloads.
+
+- A welcome note on first install, and a short note about what changed after
+  each update. /kslbd notes shows it again. If several of Squizz's addons update
+  at the same time, their notes queue up and appear one after another instead of
+  drawing on top of each other.
+
 - /rl as a shortcut for reloading your interface, the same as /reload. It is
   only claimed if no other addon already provides it, so an existing one keeps
   its own version.
@@ -13,3 +35,20 @@ Changed:
 
 - Declares support for patch 12.1.5 alongside 12.1.0, so it loads on the
   12.1.5 client without being marked out of date.
+
+- The old settings dropdown no longer sits on top of the first dungeon's item
+  icons.
+
+Removed:
+
+- The "Only Show Dungeons with Favorites" option. It never did anything:
+  dungeons without favorites were never listed either way.
+- "Refresh Now". The list already updates by itself.
+
+Fixed:
+
+- Whispering the ranking to a character by name. The name box was built for an
+  older version of the game's popup and would have errored; it was also not
+  reachable from any menu.
+- A long ranking could be rejected by chat for being over 255 characters. It is
+  now cut short at the last dungeon that fits.

@@ -32,21 +32,26 @@ StaticPopupDialogs["KSLBESTDUNGEON_WHISPER_TARGET"] = {
     hasEditBox = 1,
     maxLetters = 12,
     editBoxWidth = 200,
+    -- 12.x dialogs expose their edit box through GetEditBox(); the old dialog.editBox
+    -- field no longer exists.
     OnAccept = function(self)
-        local target = self.editBox:GetText();
+        local editBox = self.GetEditBox and self:GetEditBox() or self.editBox;
+        local target = editBox and strtrim(editBox:GetText());
         if (target and target ~= "") then
             Addon:SendRankedDungeonsToChat("WHISPER", target);
         end
     end,
     OnShow = function(self)
-        self.editBox:SetFocus();
+        local editBox = self.GetEditBox and self:GetEditBox() or self.editBox;
+        if (editBox) then editBox:SetFocus(); end
     end,
     OnHide = function(self)
         ChatEdit_FocusActiveWindow();
-        self.editBox:SetText("");
+        local editBox = self.GetEditBox and self:GetEditBox() or self.editBox;
+        if (editBox) then editBox:SetText(""); end
     end,
     EditBoxOnEnterPressed = function(self)
-        local target = self:GetText();
+        local target = strtrim(self:GetText());
         if (target and target ~= "") then
             Addon:SendRankedDungeonsToChat("WHISPER", target);
         end
@@ -62,110 +67,22 @@ StaticPopupDialogs["KSLBESTDUNGEON_WHISPER_TARGET"] = {
 };
 
 -- ============================================================
--- Settings Dropdown Mixin (for KSL frame integration)
+-- Share (send the ranking to chat)
 -- ============================================================
-KSLBestDungeonSettingsDropdownMixin = {};
 
-function KSLBestDungeonSettingsDropdownMixin:Init()
-    local function GenerateMenu(dropdown, rootDescription)
-        -- Sort By
-        local sortBy = rootDescription:CreateButton("Sort By");
-        local sorts = {
-            { value = "score", text = "Score (Weighted)" },
-            { value = "count", text = "Total Favorites Count" },
-            { value = "bis", text = "BiS Count" },
-            { value = "name", text = "Dungeon Name" },
-        };
-        for _, sort in ipairs(sorts) do
-            sortBy:CreateRadio(sort.text, function() return Addon:GetSetting("sortBy") == sort.value end,
-                function() Addon:SetSetting("sortBy", sort.value); self:GetParent():Refresh(); end);
-        end
+-- Chat rejects anything longer than this.
+local MAX_CHAT_LENGTH = 255;
 
-        rootDescription:CreateDivider();
-
-        -- Min Favorites
-        local minFavs = rootDescription:CreateButton("Min Favorites: " .. Addon:GetSetting("minFavorites"));
-        for i = 1, 10 do
-            minFavs:CreateRadio(tostring(i), function() return Addon:GetSetting("minFavorites") == i end,
-                function() Addon:SetSetting("minFavorites", i); self:GetParent():Refresh(); end);
-        end
-
-        rootDescription:CreateDivider();
-
-        -- Weight by Tier
-        rootDescription:CreateCheckbox("Weight by Tier", function() return Addon:GetSetting("weightByTier") end,
-            function() Addon:SetSetting("weightByTier", not Addon:GetSetting("weightByTier")); self:GetParent():Refresh(); end);
-
-        -- Show All Specs
-        rootDescription:CreateCheckbox("Show All Specs", function() return Addon:GetSetting("showAllSpecs") end,
-            function() Addon:SetSetting("showAllSpecs", not Addon:GetSetting("showAllSpecs")); self:GetParent():Refresh(); end);
-
-        -- Only with Favorites
-        rootDescription:CreateCheckbox("Only Show Dungeons with Favorites", function() return Addon:GetSetting("showOnlyWithFavorites") end,
-            function() Addon:SetSetting("showOnlyWithFavorites", not Addon:GetSetting("showOnlyWithFavorites")); self:GetParent():Refresh(); end);
-
-        rootDescription:CreateDivider();
-
-        -- Send to Chat
-        local sendToChat = rootDescription:CreateButton("Send to Chat");
-        local channels = {
-            { value = "PARTY", text = "Party" },
-            { value = "INSTANCE_CHAT", text = "Instance" },
-            { value = "GUILD", text = "Guild" },
-            { value = "SAY", text = "Say" },
-            { value = "YELL", text = "Yell" },
-        };
-        for _, channel in ipairs(channels) do
-            sendToChat:CreateButton(channel.text, function()
-                Addon:SendRankedDungeonsToChat(channel.value);
-            end);
-        end
-        -- Battle.net Whisper - submenu with friends list (refreshed each menu open)
-        local bnetWhisper = sendToChat:CreateButton("Battle.net Whisper");
-        bnetWhisper:SetScrollMode(300);
-        local numTotal = BNGetNumFriends();
-        if (numTotal == 0) then
-            bnetWhisper:CreateButton("|cff808080No Battle.net friends|r", function() end):SetEnabled(false);
-        else
-            for i = 1, numTotal do
-                local accountInfo = C_BattleNet.GetFriendAccountInfo(i);
-                if (accountInfo and accountInfo.bnetAccountID and accountInfo.gameAccountInfo) then
-                    local gameAccountInfo = accountInfo.gameAccountInfo;
-                    local characterName = "";
-                    if (gameAccountInfo.characterName and gameAccountInfo.characterName ~= "") then
-                        characterName = " (" .. gameAccountInfo.characterName .. ")";
-                    end
-                    local isOnline = gameAccountInfo.isOnline;
-                    local text = accountInfo.battleTag .. characterName;
-                    if (not isOnline) then
-                        text = "|cff808080" .. text .. " (Offline)|r";
-                    end
-                    bnetWhisper:CreateButton(text, function()
-                        if (isOnline) then
-                            Addon:SendRankedDungeonsToChat("BN_WHISPER", accountInfo.bnetAccountID);
-                        end
-                    end):SetEnabled(isOnline);
-                end
-            end
-        end
-
-        rootDescription:CreateDivider();
-
-        -- Refresh
-        rootDescription:CreateButton("Refresh Now", function()
-            self:GetParent():Refresh();
-        end);
-
-        -- Reset
-        rootDescription:CreateButton("Reset Settings", function()
-            KSLBestDungeonDB = nil;
-            ReloadUI();
-        end);
-    end
-
-    self:SetupMenu(GenerateMenu);
-    self:SetWidth(150);
-end
+-- Readable names for the Share menu and the "Sent to ..." confirmation.
+local CHANNEL_LABEL = {
+    PARTY = "Party",
+    INSTANCE_CHAT = "Instance",
+    GUILD = "Guild",
+    SAY = "Say",
+    YELL = "Yell",
+    WHISPER = "Whisper",
+    BN_WHISPER = "Battle.net friend",
+};
 
 -- Send ranked dungeons to chat channel
 function Addon:SendRankedDungeonsToChat(channel, whisperTarget)
@@ -175,22 +92,286 @@ function Addon:SendRankedDungeonsToChat(channel, whisperTarget)
         return;
     end
 
-    local parts = {};
+    -- Add dungeons in rank order until the next one would push the message past the
+    -- chat limit, rather than letting the whole message be rejected.
+    local message = "KSL Best Dungeons: ";
     for i, dungeonData in ipairs(ranked) do
-        table.insert(parts, string.format("%d.[%s]", i, dungeonData.dungeon.name));
+        local part = string.format("%s%d.[%s]", (i > 1) and ", " or "", i, dungeonData.dungeon.name);
+        if (#message + #part > MAX_CHAT_LENGTH) then break; end
+        message = message .. part;
     end
-    local message = "KSL Best Dungeons: " .. table.concat(parts, ", ");
+
+    local SendChat = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage;
+    local label = CHANNEL_LABEL[channel] or channel;
 
     if (channel == "WHISPER" and whisperTarget) then
-        SendChatMessage(message, "WHISPER", nil, whisperTarget);
+        SendChat(message, "WHISPER", nil, whisperTarget);
     elseif (channel == "BN_WHISPER" and whisperTarget) then
         -- whisperTarget is the bnetAccountID (presenceID)
         BNSendWhisper(whisperTarget, message);
-        print("|cff9d5db8KSLBestDungeon|r: Sent to Battle.net friend");
+        print("|cff9d5db8KSLBestDungeon|r: Sent to " .. label);
     else
-        SendChatMessage(message, channel);
-        print("|cff9d5db8KSLBestDungeon|r: Sent to " .. channel);
+        SendChat(message, channel);
+        print("|cff9d5db8KSLBestDungeon|r: Sent to " .. label);
     end
+end
+
+-- Only channels you can post to right now are enabled; the rest are listed greyed out
+-- with the reason, so it is clear why they cannot be picked.
+local function GenerateShareMenu(dropdown, rootDescription)
+    local channels = {
+        { value = "PARTY", available = IsInGroup(LE_PARTY_CATEGORY_HOME), reason = "not in a party" },
+        { value = "INSTANCE_CHAT", available = IsInGroup(LE_PARTY_CATEGORY_INSTANCE), reason = "not in an instance group" },
+        { value = "GUILD", available = IsInGuild(), reason = "not in a guild" },
+        { value = "SAY", available = true },
+        { value = "YELL", available = true },
+    };
+    for _, channel in ipairs(channels) do
+        local text = CHANNEL_LABEL[channel.value];
+        if (not channel.available) then
+            text = text .. " |cff808080(" .. channel.reason .. ")|r";
+        end
+        rootDescription:CreateButton(text, function()
+            Addon:SendRankedDungeonsToChat(channel.value);
+        end):SetEnabled(channel.available);
+    end
+
+    rootDescription:CreateDivider();
+
+    rootDescription:CreateButton("Whisper a character...", function()
+        StaticPopup_Show("KSLBESTDUNGEON_WHISPER_TARGET");
+    end);
+
+    -- Battle.net Whisper - submenu with friends list (rebuilt each time the menu opens)
+    local bnetWhisper = rootDescription:CreateButton("Battle.net friend");
+    bnetWhisper:SetScrollMode(300);
+    local numTotal = BNGetNumFriends();
+    if (numTotal == 0) then
+        bnetWhisper:CreateButton("|cff808080No Battle.net friends|r", function() end):SetEnabled(false);
+    else
+        for i = 1, numTotal do
+            local accountInfo = C_BattleNet.GetFriendAccountInfo(i);
+            if (accountInfo and accountInfo.bnetAccountID and accountInfo.gameAccountInfo) then
+                local gameAccountInfo = accountInfo.gameAccountInfo;
+                local characterName = "";
+                if (gameAccountInfo.characterName and gameAccountInfo.characterName ~= "") then
+                    characterName = " (" .. gameAccountInfo.characterName .. ")";
+                end
+                local isOnline = gameAccountInfo.isOnline;
+                local text = accountInfo.battleTag .. characterName;
+                if (not isOnline) then
+                    text = "|cff808080" .. text .. " (Offline)|r";
+                end
+                bnetWhisper:CreateButton(text, function()
+                    if (isOnline) then
+                        Addon:SendRankedDungeonsToChat("BN_WHISPER", accountInfo.bnetAccountID);
+                    end
+                end):SetEnabled(isOnline);
+            end
+        end
+    end
+end
+
+-- ============================================================
+-- Toolbar
+--
+-- Everything that used to hide in an unlabelled settings dropdown, laid out as visible
+-- controls with tooltips. Two rows above the list:
+--   1. what is being ranked (character, specs)          [Defaults] [Share]
+--   2. Sort [..]  [x] All specs  [x] Weight by tier  Min items [..]
+-- The toolbar is a child of the rankings frame, so TabSystem shows and hides it with
+-- our tab; never Show()/Hide() it by hand.
+-- ============================================================
+KSLBestDungeonRankingsFrameMixin = {};
+
+local SORT_OPTIONS = {
+    { value = "score", text = "Score" },
+    { value = "count", text = "Favorites" },
+    { value = "bis", text = "BiS items" },
+    { value = "name", text = "Name" },
+};
+
+local function AddTooltip(frame, title, body)
+    frame:HookScript("OnEnter", function(owner)
+        GameTooltip:SetOwner(owner, "ANCHOR_BOTTOM");
+        GameTooltip:SetText(title, 1, 1, 1);
+        GameTooltip:AddLine(body, nil, nil, nil, true);
+        GameTooltip:Show();
+    end);
+    frame:HookScript("OnLeave", function()
+        GameTooltip:Hide();
+    end);
+end
+
+local function CreateLabel(parent, text)
+    local label = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall");
+    label:SetText(text);
+    return label;
+end
+
+local function CreateCheckbox(parent, text)
+    local check = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate");
+    check:SetSize(24, 24);
+    if (not check.Text) then
+        check.Text = check:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall");
+        check.Text:SetPoint("LEFT", check, "RIGHT", 2, 0);
+    end
+    check.Text:SetFontObject("GameFontNormalSmall");
+    check.Text:SetText(text);
+    return check;
+end
+
+-- Built from Init() on the rankings frame (self).
+function KSLBestDungeonRankingsFrameMixin:CreateToolbar()
+    local frame = self;
+
+    local toolbar = CreateFrame("Frame", nil, self);
+    toolbar:SetPoint("TOPLEFT", 10, -4);
+    toolbar:SetPoint("TOPRIGHT", -12, -4);
+    toolbar:SetHeight(52);
+    self.Toolbar = toolbar;
+
+    -- Row 1, right: Share, then Defaults to its left
+    local share = CreateFrame("DropdownButton", nil, toolbar, "WowStyle1DropdownTemplate");
+    share:SetPoint("TOPRIGHT", 0, 0);
+    share:SetWidth(80);
+    share:SetDefaultText("Share");
+    share:SetupMenu(GenerateShareMenu);
+    AddTooltip(share, "Share", "Post this ranking to chat: party, instance, guild, say, yell, or a whisper.");
+    toolbar.Share = share;
+
+    local defaults = CreateFrame("Button", nil, toolbar, "UIPanelButtonTemplate");
+    defaults:SetSize(72, 22);
+    defaults:SetPoint("RIGHT", share, "LEFT", -6, 0);
+    defaults:SetText("Defaults");
+    defaults:SetScript("OnClick", function()
+        Addon:ResetSettings();
+        frame:Refresh();
+    end);
+    AddTooltip(defaults, "Defaults", "Put sorting and filtering back to how they started.");
+    toolbar.Defaults = defaults;
+
+    -- Row 1, left: what the list is ranking. A frame rather than a bare FontString so
+    -- it can carry a tooltip.
+    local context = CreateFrame("Frame", nil, toolbar);
+    context:SetPoint("LEFT", toolbar, "TOPLEFT", 0, -12);
+    context:SetPoint("RIGHT", defaults, "LEFT", -8, 0);
+    context:SetHeight(20);
+    context:EnableMouse(true);
+    context.Text = context:CreateFontString(nil, "OVERLAY", "GameFontHighlight");
+    context.Text:SetAllPoints();
+    context.Text:SetJustifyH("LEFT");
+    context.Text:SetWordWrap(false);
+    AddTooltip(context, "What is ranked",
+        "Dungeons are ranked by the favorites of the character selected in KeystoneLoot "
+        .. "(the character icon at the top).\n\n"
+        .. "With \"All specs\" ticked, favorites from every spec count. Untick it to rank "
+        .. "only for the spec picked in KeystoneLoot's class menu.");
+    toolbar.Context = context;
+
+    -- Row 2: Sort
+    local sortLabel = CreateLabel(toolbar, "Sort:");
+    sortLabel:SetPoint("LEFT", toolbar, "TOPLEFT", 0, -40);
+
+    local sort = CreateFrame("DropdownButton", nil, toolbar, "WowStyle1DropdownTemplate");
+    sort:SetPoint("LEFT", sortLabel, "RIGHT", 6, 0);
+    sort:SetWidth(100);
+    sort:SetupMenu(function(dropdown, rootDescription)
+        for _, option in ipairs(SORT_OPTIONS) do
+            rootDescription:CreateRadio(option.text,
+                function() return Addon:GetSetting("sortBy") == option.value; end,
+                function() Addon:SetSetting("sortBy", option.value); frame:Refresh(); end);
+        end
+    end);
+    AddTooltip(sort, "Sort",
+        "Score: favorites weighted by tier (see \"Weight by tier\").\n"
+        .. "Favorites: how many favorited items drop there.\n"
+        .. "BiS items: how many Best in Slot items drop there.\n"
+        .. "Name: alphabetical.");
+    toolbar.Sort = sort;
+
+    -- Row 2: All specs
+    local allSpecs = CreateCheckbox(toolbar, "All specs");
+    allSpecs:SetPoint("LEFT", sort, "RIGHT", 10, 0);
+    allSpecs:SetScript("OnClick", function(check)
+        Addon:SetSetting("showAllSpecs", check:GetChecked() and true or false);
+        frame:Refresh();
+    end);
+    AddTooltip(allSpecs, "All specs",
+        "Count favorites from every spec of this character.\n\n"
+        .. "Untick to rank only for the spec picked in KeystoneLoot's class menu.");
+    toolbar.AllSpecs = allSpecs;
+
+    -- Row 2: Weight by tier
+    local weight = CreateCheckbox(toolbar, "Weight by tier");
+    weight:SetPoint("LEFT", allSpecs.Text, "RIGHT", 8, 0);
+    weight:SetScript("OnClick", function(check)
+        Addon:SetSetting("weightByTier", check:GetChecked() and true or false);
+        frame:Refresh();
+    end);
+    AddTooltip(weight, "Weight by tier",
+        "Make better favorites count for more in the score:\n"
+        .. "Best in Slot 100, Must have 50, Nice to have 10, Catalyst 5, Transmog 1.\n\n"
+        .. "Untick to count every favorite as 1.");
+    toolbar.Weight = weight;
+
+    -- Row 2: Min items
+    local minLabel = CreateLabel(toolbar, "Min items:");
+    minLabel:SetPoint("LEFT", weight.Text, "RIGHT", 10, 0);
+
+    local minFavs = CreateFrame("DropdownButton", nil, toolbar, "WowStyle1DropdownTemplate");
+    minFavs:SetPoint("LEFT", minLabel, "RIGHT", 6, 0);
+    minFavs:SetWidth(52);
+    minFavs:SetupMenu(function(dropdown, rootDescription)
+        for i = 1, 10 do
+            rootDescription:CreateRadio(tostring(i),
+                function() return Addon:GetSetting("minFavorites") == i; end,
+                function() Addon:SetSetting("minFavorites", i); frame:Refresh(); end);
+        end
+    end);
+    AddTooltip(minFavs, "Min items", "Hide dungeons with fewer favorites than this.");
+    toolbar.MinFavorites = minFavs;
+end
+
+-- Bring the toolbar in line with the current settings and KSL selection. Called from
+-- every Refresh(), which also covers Defaults and character/spec changes in KSL.
+function KSLBestDungeonRankingsFrameMixin:UpdateToolbar()
+    local toolbar = self.Toolbar;
+    if (not toolbar) then return; end
+
+    toolbar.AllSpecs:SetChecked(Addon:GetSetting("showAllSpecs"));
+    toolbar.Weight:SetChecked(Addon:GetSetting("weightByTier"));
+    -- Regenerating updates the dropdown text to the selected radio.
+    toolbar.Sort:GenerateMenu();
+    toolbar.MinFavorites:GenerateMenu();
+
+    local characterKey, _, specId = Addon:GetRankingContext();
+    if (not characterKey) then
+        toolbar.Context.Text:SetText("|cff808080No character selected in KeystoneLoot|r");
+        return;
+    end
+
+    -- KSL's key is "Realm-Name-ClassId" (Character:GetKey). Parsed from the right,
+    -- because realm names can contain hyphens (Azjol-Nerub) and character names
+    -- cannot. The class comes from the key rather than classId above: it is the
+    -- class of the character selected in KSL, which need not be the one logged in.
+    local _, name, keyClassId = characterKey:match("^(.*)%-(.-)%-(%d+)$");
+    name = name or characterKey;
+    local classFile = keyClassId and select(2, GetClassInfo(tonumber(keyClassId)));
+    local classColor = classFile and C_ClassColor.GetClassColor(classFile);
+    if (classColor) then
+        name = classColor:WrapTextInColorCode(name);
+    end
+
+    local specText;
+    if (Addon:GetSetting("showAllSpecs")) then
+        specText = "all specs";
+    else
+        local _, specName = GetSpecializationInfoByID(specId or 0);
+        specText = (specName or "current spec") .. " only";
+    end
+
+    toolbar.Context.Text:SetText("Ranking " .. name .. "  |cff808080·|r  " .. specText);
 end
 
 -- Get Battle.net account ID by BattleTag from friends list (kept for backward compatibility)
@@ -208,7 +389,6 @@ end
 -- ============================================================
 -- Rankings Frame Methods
 -- ============================================================
-KSLBestDungeonRankingsFrameMixin = {};
 
 function KSLBestDungeonRankingsFrameMixin:Init()
     -- Subscribe to KeystoneLoot's public API. KSL's internal DB observers are not
@@ -222,6 +402,8 @@ function KSLBestDungeonRankingsFrameMixin:Init()
     -- XML template, so OnShow/OnHide are not wired up for us - do it by hand.
     self:SetScript("OnShow", self.OnShow);
     self:SetScript("OnHide", self.OnHide);
+
+    self:CreateToolbar();
 
     self.lastFavoritesHash = nil;
     self:StartPolling();
@@ -326,6 +508,7 @@ function KSLBestDungeonRankingsFrameMixin:Refresh()
     end
 
     self:HideMessage();
+    self:UpdateToolbar();
 
     -- Check KeystoneLoot
     if (not KeystoneLootDB or not KeystoneLootCharDB) then

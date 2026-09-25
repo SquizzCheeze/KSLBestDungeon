@@ -39,7 +39,6 @@ local TIER_WEIGHT = {
 local DEFAULT_SETTINGS = {
     minFavorites = 1,
     weightByTier = true,
-    showOnlyWithFavorites = true,
     sortBy = "score", -- "score", "count", "bis", "name"
     showAllSpecs = true,
 };
@@ -76,6 +75,15 @@ function Addon:SetSetting(key, value)
     SetSetting(key, value);
 end
 
+-- Put the ranking options back to their defaults in place. Unlike /kslbd reset this
+-- keeps the rest of KSLBestDungeonDB and needs no reload.
+function Addon:ResetSettings()
+    if (not KSLBestDungeonDB) then
+        KSLBestDungeonDB = {};
+    end
+    KSLBestDungeonDB.settings = CopyTable(DEFAULT_SETTINGS);
+end
+
 -- Get the currently selected character's class and spec
 local function GetCurrentCharacterInfo()
     local characterKey = KeystoneLootCharDB and KeystoneLootCharDB.ui and KeystoneLootCharDB.ui.selectedCharacterKey;
@@ -94,11 +102,20 @@ local function GetCurrentCharacterInfo()
         return filterClassId, filterSpecId;
     end
 
-    -- Fallback: use current player's class/spec
-    local _, playerClassId = UnitClass("player");
+    -- Fallback: use current player's class/spec. UnitClass returns name, file, ID:
+    -- the numeric ID is the THIRD value, matching KSL's filters.classId. The second
+    -- is the class file ("HUNTER"), which this used to return by mistake.
+    local _, _, playerClassId = UnitClass("player");
     local playerSpecId = C_SpecializationInfo.GetSpecializationInfo(C_SpecializationInfo.GetSpecialization() or 1);
 
     return playerClassId, playerSpecId;
+end
+
+-- Who and what the ranking is for, for the toolbar's context line.
+function Addon:GetRankingContext()
+    local characterKey = KeystoneLootCharDB and KeystoneLootCharDB.ui and KeystoneLootCharDB.ui.selectedCharacterKey;
+    local classId, specId = GetCurrentCharacterInfo();
+    return characterKey, classId, specId;
 end
 
 -- Identity of the filter the rankings are computed for. Changing character or spec in
@@ -350,9 +367,9 @@ local function HookIntoKeystoneLoot()
         rankingsFrame[k] = v;
     end
 
-    -- Create inset
+    -- Create inset. The top 58px are left for the toolbar, which Init() builds.
     rankingsFrame.Inset = CreateFrame("Frame", nil, rankingsFrame, "InsetFrameTemplate3");
-    rankingsFrame.Inset:SetPoint("TOPLEFT", 4, -4);
+    rankingsFrame.Inset:SetPoint("TOPLEFT", 4, -58);
     rankingsFrame.Inset:SetPoint("BOTTOMRIGHT", -6, 4);
 
     -- Create scroll frame
@@ -383,19 +400,6 @@ local function HookIntoKeystoneLoot()
     -- Store reference
     Addon.KSLFrame = KSLFrame;
     Addon.RankingsFrame = rankingsFrame;
-
-    -- Create Settings Dropdown (parented to rankingsFrame so it's inside our tab's content area)
-    -- Position at top-right of the rankings frame (our tab's content area)
-    -- TabSystem automatically shows/hides child frames when switching tabs, so no manual Show/Hide needed
-    local settingsDropdown = CreateFrame("DropdownButton", nil, rankingsFrame, "WowStyle1DropdownTemplate");
-    settingsDropdown:SetPoint("TOPRIGHT", rankingsFrame, "TOPRIGHT", -20, -10);
-    settingsDropdown:SetFrameLevel(rankingsFrame:GetFrameLevel() + 10); -- Ensure it's above Inset/ScrollFrame
-    for k, v in pairs(KSLBestDungeonSettingsDropdownMixin) do
-        settingsDropdown[k] = v;
-    end
-    settingsDropdown:Init();
-    -- Don't hide - TabSystem will show it when our tab is selected
-    KSLFrame.kslBestDungeonSettingsDropdown = settingsDropdown;
 
     -- Hook KSL frame OnShow to refresh our data when tab is shown
     local originalOnShow = KSLFrame:GetScript("OnShow");
@@ -482,6 +486,19 @@ do
 	end);
 end
 
+-- Open KeystoneLoot and select our tab. Used by /kslbd and the welcome window.
+function Addon:OpenBestDungeonsTab()
+    local KSLFrame = _G.KeystoneLootFrame;
+    if (KSLFrame) then
+        KSLFrame:Show();
+        if (KSLFrame.kslBestDungeonTabId) then
+            KSLFrame:SetTab(KSLFrame.kslBestDungeonTabId);
+        end
+    else
+        print("|cff9d5db8KSLBestDungeon|r: KeystoneLoot frame not found. Type /ksl to open KeystoneLoot first.");
+    end
+end
+
 SLASH_KSLBESTDUNGEON1 = "/kslbd";
 SLASH_KSLBESTDUNGEON2 = "/kslbestdungeon";
 
@@ -489,7 +506,11 @@ SlashCmdList.KSLBESTDUNGEON = function(msg)
     msg = msg and msg:lower() or "";
 
     if (msg == "config" or msg == "options") then
-        print("|cff9d5db8KSLBestDungeon|r: Use the minimap button or type /ksl to open KeystoneLoot, then click the 'Best Dungeons' tab.");
+        print("|cff9d5db8KSLBestDungeon|r: Type /kslbd to open the Best Dungeons tab. The options are in the toolbar along its top.");
+    elseif (msg == "notes" or msg == "changelog") then
+        if (Addon.ShowReleaseNotes) then Addon:ShowReleaseNotes(); end
+    elseif (msg == "welcome") then
+        if (Addon.ShowWelcome) then Addon:ShowWelcome(); end
     elseif (msg == "reset") then
         KSLBestDungeonDB = nil;
         ReloadUI();
@@ -541,13 +562,10 @@ SlashCmdList.KSLBESTDUNGEON = function(msg)
         print("  KSL TabSystem: " .. tostring(KSLFrame.TabSystem));
         print("  Our Tab ID: " .. tostring(KSLFrame.kslBestDungeonTabId));
         print("  Rankings Frame: " .. tostring(KSLFrame.kslBestDungeonRankingsFrame));
-        print("  Settings Dropdown: " .. tostring(KSLFrame.kslBestDungeonSettingsDropdown));
-
-        if (KSLFrame.kslBestDungeonSettingsDropdown) then
-            local sd = KSLFrame.kslBestDungeonSettingsDropdown;
-            print("  Settings Dropdown Visible: " .. tostring(sd:IsShown()));
-            print("  Settings Dropdown Point: " .. tostring(sd:GetPoint()));
-            print("  Settings Dropdown Parent: " .. tostring(sd:GetParent()));
+        local toolbar = KSLFrame.kslBestDungeonRankingsFrame and KSLFrame.kslBestDungeonRankingsFrame.Toolbar;
+        print("  Toolbar: " .. tostring(toolbar));
+        if (toolbar) then
+            print("  Toolbar Visible: " .. tostring(toolbar:IsVisible()) .. " Size: " .. tostring(toolbar:GetWidth()) .. "x" .. tostring(toolbar:GetHeight()));
         end
 
         if (KSLFrame.TabSystem and KSLFrame.TabSystem.GetSelectedTab) then
@@ -563,7 +581,7 @@ SlashCmdList.KSLBESTDUNGEON = function(msg)
             .. " rank: " .. tostring(KeystoneLootCharDB and KeystoneLootCharDB.filters and KeystoneLootCharDB.filters.dungeon and KeystoneLootCharDB.filters.dungeon.rank));
 
     elseif (msg == "show") then
-        -- Force show our tab and dropdowns
+        -- Force show our tab, toolbar and KSL's item level dropdown
         local KSLFrame = _G.KeystoneLootFrame;
         if (not KSLFrame) then
             print("|cffff0000KSL Frame not found|r");
@@ -573,9 +591,10 @@ SlashCmdList.KSLBESTDUNGEON = function(msg)
         if (KSLFrame.kslBestDungeonTabId) then
             KSLFrame:SetTab(KSLFrame.kslBestDungeonTabId);
         end
-        if (KSLFrame.kslBestDungeonSettingsDropdown) then
-            KSLFrame.kslBestDungeonSettingsDropdown:Show();
-            print("Settings dropdown forced show");
+        local toolbar = KSLFrame.kslBestDungeonRankingsFrame and KSLFrame.kslBestDungeonRankingsFrame.Toolbar;
+        if (toolbar) then
+            toolbar:Show();
+            print("Toolbar forced show");
         end
         if (KSLFrame.ItemLevelDropdown) then
             KSLFrame.ItemLevelDropdown:Show();
@@ -583,15 +602,6 @@ SlashCmdList.KSLBESTDUNGEON = function(msg)
         end
 
     else
-        -- Open KeystoneLoot and select our tab
-        local KSLFrame = _G.KeystoneLootFrame;
-        if (KSLFrame) then
-            KSLFrame:Show();
-            if (KSLFrame.kslBestDungeonTabId) then
-                KSLFrame:SetTab(KSLFrame.kslBestDungeonTabId);
-            end
-        else
-            print("|cff9d5db8KSLBestDungeon|r: KeystoneLoot frame not found. Type /ksl to open KeystoneLoot first.");
-        end
+        Addon:OpenBestDungeonsTab();
     end
 end

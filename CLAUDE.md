@@ -17,7 +17,11 @@ There is no build step, package manager, linter, or test suite. The workflow is:
 
 1. Edit the `.lua`/`.xml`/`.toc` files in place.
 2. In-game: `/reload` (or restart WoW if the `.toc` file list changed — `/reload` does not pick up new files).
-3. `/kslbd` opens KeystoneLoot and selects the Best Dungeons tab.
+3. `/kslbd` opens KeystoneLoot and selects the Best Dungeons tab. `/kslbd notes` re-opens the release notes,
+   `/kslbd welcome` the first-run greeting.
+
+There is no Lua interpreter on this machine. For a syntax check, `luaparse` (npm) works in `luaVersion: '5.2'`
+mode; its 5.1 mode wrongly rejects `break;` followed by `end`, which real Lua 5.1 accepts.
 
 Static analysis is via the VS Code Lua LSP with the `ketho.wow-api` annotations (`.vscode/settings.json`);
 `mcp__ide__getDiagnostics` is the closest thing to a lint command. New WoW globals that the annotations
@@ -25,8 +29,8 @@ don't cover must be added to `Lua.diagnostics.globals` there or they show as und
 
 Debug slash commands (all in `KSLBestDungeon.lua`):
 - `/kslbd debug` — dumps the raw KeystoneLoot favorites table for the selected character.
-- `/kslbd debugui` / `/kslbd dropdown` — dumps tab id, frame refs, dropdown visibility, current tab.
-- `/kslbd show` — force-shows the frame, our tab, and the dropdowns.
+- `/kslbd debugui` / `/kslbd dropdown` — dumps tab id, frame refs, toolbar visibility, current tab.
+- `/kslbd show` — force-shows the frame, our tab, and the toolbar.
 - `/kslbd reset` — wipes `KSLBestDungeonDB` and reloads.
 
 ## Releasing
@@ -38,6 +42,9 @@ GitHub release. Ordinary pushes to `main` publish nothing. Running the workflow 
 tab is a dry run: it builds the zip and uploads nothing.
 
 - Bump `## Version` in the TOC, then `git tag -a v1.X -m "V1.X"` and `git push origin v1.X`.
+- Add a `RELEASE_NOTES["<version>"]` entry in `welcome.lua`: a few player-facing highlights, NOT a copy
+  of the changelog. It is keyed by the TOC version string. A missing entry is not fatal (the update note
+  still appears, without bullets), which is exactly why it is easy to forget.
 - `changelog.txt` is uploaded **verbatim** as that release's CurseForge notes, so it must hold only the
   version being released. Older sections move to `CHANGELOG-ARCHIVE.txt`, which `.pkgmeta` ignores so it
   never ships. Leaving history in `changelog.txt` makes every release repost the entire backlog.
@@ -53,11 +60,11 @@ SavedVariables (useful for inspecting real data without launching the game):
 
 ## Load order (`KSLBestDungeon.toc`)
 
-`ui/main_frame.xml` → `KSLBestDungeon.lua` → `ui/main_frame.lua`.
+`ui/main_frame.xml` → `KSLBestDungeon.lua` → `ui/main_frame.lua` → `welcome.lua`.
 
 The XML must load first because it declares `KSLBestDungeonEntryTemplate`. But `ui/main_frame.lua` is
-loaded *last*, so the mixin tables it defines (`KSLBestDungeonRankingsFrameMixin`,
-`KSLBestDungeonSettingsDropdownMixin`, `KSLBestDungeonEntryMixin`) do not exist while
+loaded after it, so the mixin tables it defines (`KSLBestDungeonRankingsFrameMixin`,
+`KSLBestDungeonEntryMixin`) do not exist while
 `KSLBestDungeon.lua` is being parsed. This is safe only because `KSLBestDungeon.lua` reads them lazily
 inside `HookIntoKeystoneLoot()`, which runs at `PLAYER_LOGIN`. Don't move mixin access to file scope.
 
@@ -73,8 +80,16 @@ Three layers, split by file:
 `KSLBestDungeonDB.settings`. Everything is hung off the `Addon` table, which is also published as the
 `_G.KSLBestDungeon` global.
 
-**`ui/main_frame.lua` — all UI mixins.** Rankings list, settings dropdown, per-dungeon entry rows, and
-chat export. Despite the name it contains three unrelated mixins plus the whisper StaticPopup.
+**`ui/main_frame.lua` — all UI mixins.** Share/chat export (with the whisper StaticPopup), the toolbar,
+the rankings list, and per-dungeon entry rows.
+
+**`welcome.lua` — first-run greeting and per-update release notes.** Ported from Avatar Continued. It
+shares `_G.SquizzNotesQueue` with SquizzFrames, Squizzumables, SquizzTalents and Avatar so that notes
+from several addons updated at the same login queue instead of drawing on top of each other. **The
+`NotesQueue`/`PresentNotes`/`OnNotesHidden` block must stay byte-identical to the other addons'** — the
+table's shape is an interface between them. New install vs upgrade is decided by whether
+`KSLBestDungeonDB` existed at our `ADDON_LOADED`; any later and `GetSettings()` has already created it.
+`lastSeenVersion` lives on the `KSLBestDungeonDB` root, beside `settings`.
 
 **`ui/main_frame.xml`** — only `KSLBestDungeonEntryTemplate` matters.
 
@@ -90,7 +105,17 @@ It then:
   it key by key (not a real template mixin), and builds Inset/ScrollFrame/Container by hand.
 - Registers via `KSLFrame:AddNamedTab("Best Dungeons", rankingsFrame)` (Blizzard's `TabSystemOwnerMixin`).
   **TabSystem shows/hides our frame and its children automatically** — never manually `Show()`/`Hide()`
-  the rankings frame or the settings dropdown, or the tab switching breaks.
+  the rankings frame or the toolbar, or the tab switching breaks.
+
+### Toolbar
+
+`RankingsFrameMixin:CreateToolbar()` (called from `Init()`) builds two rows in the top 58px of the
+rankings frame; `HookIntoKeystoneLoot()` starts the Inset below that. Row 1 is the context line (whose
+favorites, which specs), **Defaults** (`Addon:ResetSettings()`, no reload) and **Share**; row 2 is Sort,
+All specs, Weight by tier, Min items. Every control has a tooltip — keep it that way, the point of the
+toolbar is that nothing is unexplained. `UpdateToolbar()` runs on every `Refresh()` and re-syncs the
+checkboxes and dropdown texts from settings, so anything that changes settings only needs to call
+`Refresh()`. Width is tight at KSL's default 500px frame: check any new control fits before adding it.
 - Wraps `KSLFrame`'s `OnShow` script and `hooksecurefunc`s `KSLFrame:SetTab` to call `Refresh()` when our
   tab becomes active.
 
@@ -170,6 +195,9 @@ What that leaves:
   `KeystoneLoot.DB:AddObserver` is not reachable.
 - **Read-only state.** `KeystoneLootDB` / `KeystoneLootCharDB` are ordinary SavedVariables globals and
   can be read directly (that is how favorites and the selected character are obtained).
+- **Character keys are `Realm-Name-ClassId`** (e.g. `Illidan-Squizz-3`, KSL's `Character:GetKey()`), NOT
+  `Name-Realm`. Parse from the right, `^(.*)%-(.-)%-(%d+)$`, because realms can contain hyphens
+  (Azjol-Nerub). The trailing number is the selected character's numeric class ID.
 
 `Addon:GetItemInfo`/`GetItemInfoFromLink` in the core file are thin `C_Item.GetItemInfo` wrappers that
 return `nil` until the client has cached the item.
