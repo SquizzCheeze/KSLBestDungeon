@@ -541,6 +541,9 @@ function KSLBestDungeonRankingsFrameMixin:OnShow()
     self:SyncSizeToKSL();
     -- OnHide cancels the ticker, so it has to be recreated every time our tab is selected.
     self:StartPolling();
+    -- Ask the group for their keys; answers land within a second or two and
+    -- the poll above redraws when they do (they are part of its hash).
+    Addon:RequestGroupKeys();
     self:Refresh();
 end
 
@@ -876,11 +879,16 @@ function KSLBestDungeonEntryMixin:OnLoad()
         end
         GameTooltip:AddDoubleLine("Score", string.format("%.0f", data.stats.score), 1, 1, 1, 1, 1, 1);
 
-        -- Your own state here, when this list is for you (see Init).
-        if (row.ownKeyLevel or row.seasonBest) then
+        -- Your own state here, when this list is for you (see Init), and the
+        -- group's keys for it.
+        local groupKeys = row.groupKeys or {};
+        if (row.ownKeyLevel or row.seasonBest or groupKeys[1]) then
             GameTooltip:AddLine(" ");
             if (row.ownKeyLevel) then
                 GameTooltip:AddLine(string.format("Your keystone: +%d", row.ownKeyLevel), 0.31, 0.88, 0.36);
+            end
+            for _, k in ipairs(groupKeys) do
+                GameTooltip:AddLine(string.format("%s's keystone: +%d", k.name, k.level), 0.4, 0.7, 1);
             end
             local best = row.seasonBest;
             if (best) then
@@ -938,10 +946,32 @@ function KSLBestDungeonEntryMixin:Init(rank, dungeonData, rowWidth)
         if (keyMap == id and keyLevel) then self.ownKeyLevel = keyLevel; end
         self.seasonBest = Addon:GetSeasonBest(id);
     end
+    -- The group's keys for this dungeon (Addon:GetGroupKeys), highest first.
+    -- These are theirs whoever the ranking is for, so no IsRankingSelf gate.
+    self.groupKeys = {};
+    for name, k in pairs(Addon:GetGroupKeys()) do
+        if (k.mapID == id) then table.insert(self.groupKeys, { name = name, level = k.level }); end
+    end
+    table.sort(self.groupKeys, function(a, b) return a.level > b.level; end);
+
+    -- Rank column: your key in green, else the group's best in blue.
     local keyIcon = C_Item.GetItemIconByID(180653); -- Mythic Keystone
-    self.KeyText:SetText(self.ownKeyLevel
-        and string.format("%s+%d", keyIcon and ("|T" .. keyIcon .. ":14|t") or "", self.ownKeyLevel) or "");
-    self.KeyHighlight:SetShown(self.ownKeyLevel ~= nil);
+    local iconMarkup = keyIcon and ("|T" .. keyIcon .. ":14|t") or "";
+    if (self.ownKeyLevel) then
+        self.KeyText:SetTextColor(0.31, 0.88, 0.36);
+        self.KeyText:SetText(string.format("%s+%d", iconMarkup, self.ownKeyLevel));
+    elseif (self.groupKeys[1]) then
+        self.KeyText:SetTextColor(0.4, 0.7, 1);
+        self.KeyText:SetText(string.format("%s+%d", iconMarkup, self.groupKeys[1].level));
+    else
+        self.KeyText:SetText("");
+    end
+    self.KeyHighlight:SetShown(self.ownKeyLevel ~= nil or self.groupKeys[1] ~= nil);
+    if (self.ownKeyLevel) then
+        self.KeyHighlight:SetColorTexture(0.31, 0.88, 0.36, 0.08);
+    else
+        self.KeyHighlight:SetColorTexture(0.4, 0.7, 1, 0.06);
+    end
     local best = self.seasonBest;
     if (best) then
         self.BestText:SetText(string.format("Best +%d%s", best.level,

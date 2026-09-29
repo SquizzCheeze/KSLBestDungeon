@@ -14,3 +14,9 @@ New:
   when choosing a key. The row tooltip has both too.
 - Both are for the character you are logged in on, so they show only when
   KeystoneLoot is showing that character, not one of your alts.
+- Your group's keystones show too. In a group, opening the Best Dungeons
+  tab asks everyone for their key, and any dungeon someone holds a key for
+  is marked in blue with the highest level, and listed by name in the row
+  tooltip - handy for deciding whose key to run. Groupmates need an addon
+  that shares keys the usual way (BigWigs, Details, EllesmereUI and many
+  others do); KSLBestDungeon itself needs nothing extra for this.

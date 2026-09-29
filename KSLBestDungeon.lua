@@ -303,8 +303,15 @@ function Addon:GetFilterStateKey()
     -- The owned key too, so the "Your key" line follows a key that changes
     -- (a run, a reroll) while the tab is open.
     local keyMap, keyLevel = self:GetOwnKeystone();
-    return string.format("%s:%s:%s:%s:%s:%s:%s", tostring(characterKey), tostring(classId), tostring(specId),
-        tostring(GetSetting("showAllSpecs")), GetSlotFilterStateKey(), tostring(keyMap), tostring(keyLevel));
+    -- And the group's, so an answer arriving while the tab is open shows.
+    local group = {};
+    for name, k in pairs(self:GetGroupKeys()) do
+        group[#group + 1] = name .. "=" .. k.mapID .. "+" .. k.level;
+    end
+    table.sort(group);
+    return string.format("%s:%s:%s:%s:%s:%s:%s:%s", tostring(characterKey), tostring(classId), tostring(specId),
+        tostring(GetSetting("showAllSpecs")), GetSlotFilterStateKey(), tostring(keyMap), tostring(keyLevel),
+        table.concat(group, ","));
 end
 
 -- ============================================================
@@ -345,6 +352,69 @@ function Addon:GetSeasonBest(challengeModeId)
         rating = overall;
     end
     return { level = best.level, timed = inTime ~= nil, rating = rating };
+end
+
+-- ============================================================
+-- Your group's keystones
+--
+-- Spoken in LibKeystone's protocol (BigWigs' library; also in Details,
+-- EllesmereUI, WindTools...) WITHOUT embedding it: prefix "LibKS" on PARTY,
+-- "R" asks, and every client running the library answers
+-- "<level>,<challengeMapID>,<rating>". Receiving is all we need -- our own key
+-- is read directly (GetOwnKeystone), and if another addon here carries the
+-- library it already answers the group's requests for us. Registering an
+-- already-registered prefix is harmless (the API reports a duplicate).
+--
+-- Addon messages can be blocked inside restricted content (an active key, an
+-- encounter); the tab is used while forming a group, where they are not.
+-- ============================================================
+local KS_PREFIX = "LibKS";
+local KS_THROTTLE = 5; -- seconds between requests, as LibKeystone throttles
+local groupKeys = {};  -- [shortName] = { level, mapID }
+local lastRequest = 0;
+
+-- Everyone else's keys: { [shortName] = { level, mapID } }.
+function Addon:GetGroupKeys()
+    return groupKeys;
+end
+
+-- Ask the group for their keys (no-op solo, throttled).
+function Addon:RequestGroupKeys()
+    -- PARTY only exists for a player-made group (LibKeystone uses nothing else).
+    if not IsInGroup(LE_PARTY_CATEGORY_HOME) then return; end
+    local now = GetTime();
+    if now - lastRequest < KS_THROTTLE then return; end
+    lastRequest = now;
+    C_ChatInfo.SendAddonMessage(KS_PREFIX, "R", "PARTY");
+end
+
+do
+    C_ChatInfo.RegisterAddonMessagePrefix(KS_PREFIX);
+    local ksFrame = CreateFrame("Frame");
+    ksFrame:RegisterEvent("CHAT_MSG_ADDON");
+    ksFrame:RegisterEvent("GROUP_ROSTER_UPDATE");
+    ksFrame:SetScript("OnEvent", function(_, event, prefix, msg, channel, sender)
+        if event == "GROUP_ROSTER_UPDATE" then
+            -- Forget anyone who left.
+            if not IsInGroup() then wipe(groupKeys); return; end
+            for name in pairs(groupKeys) do
+                if not UnitInParty(name) then groupKeys[name] = nil; end
+            end
+            return;
+        end
+        if prefix ~= KS_PREFIX or channel ~= "PARTY" then return; end
+        if issecretvalue and (issecretvalue(msg) or issecretvalue(sender)) then return; end
+        local level, mapID = msg:match("^(%d+),(%d+),%d+$");
+        level, mapID = tonumber(level), tonumber(mapID);
+        if not level or not mapID then return; end
+        local name = Ambiguate(sender, "none");
+        if name == UnitName("player") then return; end -- ours is read directly
+        if level > 0 and mapID > 0 then
+            groupKeys[name] = { level = level, mapID = mapID };
+        else
+            groupKeys[name] = nil;
+        end
+    end);
 end
 
 -- Get all favorites for the current character/spec across all dungeons
