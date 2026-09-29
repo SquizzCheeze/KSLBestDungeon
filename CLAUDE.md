@@ -58,7 +58,8 @@ Release checklist, in order:
   version being released. Leaving history in it makes every release repost the entire backlog.
 - A version number cannot be re-uploaded to CurseForge. A fix after tagging is a new version.
 
-Released: v1.4 (2026-09-25) was the first release through this pipeline.
+Released: v1.4 (2026-09-25) was the first release through this pipeline; v1.5 (2026-09-29) is the
+latest, already archived, with `changelog.txt` open at V1.6.
 - What ships is controlled by the `ignore:` list in `.pkgmeta`, not by `.gitignore`. Dev files
   (`CLAUDE.md`, `README.md`, `.vscode`, `.github`, `.claude`, the changelog archive) are excluded there;
   `LICENSE` and `changelog.txt` deliberately are not.
@@ -226,6 +227,21 @@ frame pool. Rows are `KSLBestDungeonEntryTemplate` frames anchored to both sides
 they are as wide as the list (the XML's 580px is overridden). A fixed 140px text column truncates with
 "..."; icons fill the rest and wrap onto more lines, growing the row from its 70px minimum. There is no
 icon cap. `Init()` takes the row width explicitly because the anchors may not have resolved yet.
+
+### Your key, season best and group keys (V1.5)
+
+- **Only when the ranking is for the logged-in character** (`Addon:IsRankingSelf()`): KSL can show an
+  alt, and your bags / season best describe the character you are on. `GetOwnKeystone()`
+  (`C_MythicPlus.GetOwnedKeystoneChallengeMapID/Level`) marks the row green; `GetSeasonBest(mapID)` adds the
+  fourth text line ("Best +12 | 285 rating").
+- **Group keys use the LibKeystone PROTOCOL, not the library**: prefix `LibKS` on PARTY, send `"R"` to
+  request, replies are `"level,mapID,rating"`. BigWigs, Details, EllesmereUI and others answer, so
+  groupmates need one of those; nothing is embedded here. `GetGroupKeys()` / `RequestGroupKeys()` (asked on
+  opening the tab in a group). Group keys show whoever the ranking is for -- no `IsRankingSelf` gate.
+- **The key marker is a real 26px texture (`KeyIcon`) with the level on it** (`KeyText`, NumberFontNormal,
+  anchored to the icon's bottom-right), like a bag slot's count. It was an inline `|T...:14|t` beside
+  "+12" and the user found it unreadably small; the rank column is only 40px (`TEXT_LEFT` 50 minus the 10px
+  inset), so an inline icon cannot grow there. Green = your key, blue = best group key.
 
 ### What is reachable in KeystoneLoot — and what is not
 
