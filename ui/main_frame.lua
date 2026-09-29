@@ -830,8 +830,17 @@ function KSLBestDungeonEntryMixin:OnLoad()
     self.BestText = CreateColumnText(self, "GameFontNormalSmall", -58);
     self.BestText:SetTextColor(0.55, 0.8, 1);
 
-    self.KeyText = self:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall");
-    self.KeyText:SetPoint("TOPLEFT", self.RankText, "BOTTOMLEFT", 0, -4);
+    -- The keystone as a real icon with the level on it like a bag slot's
+    -- count: the rank column is 40px wide, too narrow to grow an inline
+    -- |T icon beside "+12" past a pinhead.
+    self.KeyIcon = self:CreateTexture(nil, "ARTWORK");
+    self.KeyIcon:SetSize(26, 26);
+    self.KeyIcon:SetPoint("TOPLEFT", self.RankText, "BOTTOMLEFT", 0, -4);
+    self.KeyIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92);
+    self.KeyIcon:Hide();
+
+    self.KeyText = self:CreateFontString(nil, "OVERLAY", "NumberFontNormal");
+    self.KeyText:SetPoint("BOTTOMLEFT", self.KeyIcon, "BOTTOMRIGHT", -8, -2);
     self.KeyText:SetTextColor(0.31, 0.88, 0.36);
 
     self.KeyHighlight = self:CreateTexture(nil, "BACKGROUND", nil, 1);
@@ -955,17 +964,16 @@ function KSLBestDungeonEntryMixin:Init(rank, dungeonData, rowWidth)
     table.sort(self.groupKeys, function(a, b) return a.level > b.level; end);
 
     -- Rank column: your key in green, else the group's best in blue.
-    local keyIcon = C_Item.GetItemIconByID(180653); -- Mythic Keystone
-    local iconMarkup = keyIcon and ("|T" .. keyIcon .. ":14|t") or "";
+    local keyLevel = self.ownKeyLevel or (self.groupKeys[1] and self.groupKeys[1].level);
     if (self.ownKeyLevel) then
         self.KeyText:SetTextColor(0.31, 0.88, 0.36);
-        self.KeyText:SetText(string.format("%s+%d", iconMarkup, self.ownKeyLevel));
-    elseif (self.groupKeys[1]) then
-        self.KeyText:SetTextColor(0.4, 0.7, 1);
-        self.KeyText:SetText(string.format("%s+%d", iconMarkup, self.groupKeys[1].level));
     else
-        self.KeyText:SetText("");
+        self.KeyText:SetTextColor(0.4, 0.7, 1);
     end
+    self.KeyText:SetText(keyLevel and ("+" .. keyLevel) or "");
+    local keyIcon = keyLevel and C_Item.GetItemIconByID(180653); -- Mythic Keystone
+    if (keyIcon) then self.KeyIcon:SetTexture(keyIcon); end
+    self.KeyIcon:SetShown(keyIcon ~= nil and keyIcon ~= false);
     self.KeyHighlight:SetShown(self.ownKeyLevel ~= nil or self.groupKeys[1] ~= nil);
     if (self.ownKeyLevel) then
         self.KeyHighlight:SetColorTexture(0.31, 0.88, 0.36, 0.08);
