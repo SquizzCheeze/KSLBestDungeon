@@ -15,6 +15,12 @@ It has no window of its own: it adds a **Best Dungeons** tab to KeystoneLoot.
   dungeon to see how its score was worked out.
 - **Follows KeystoneLoot** — the selected character, spec, slot filter and item
   level are picked up live, and item tooltips show the item level chosen there.
+- **Your key and season best** — the dungeon of the keystone in your bags is
+  marked in the ranking, and each dungeon shows your season best and rating,
+  so you can pick a key that is good for both loot and score.
+- **Your group's keys** — in a group, the keys your groupmates hold are marked
+  too, with who holds what in the tooltip (they need BigWigs, Details or
+  another addon that shares keys).
 - **Toolbar** — sort order, all specs at once, weight by tier on or off, and a
   minimum item count.
 - **Current season automatically** — dungeon names come from the game, not a
