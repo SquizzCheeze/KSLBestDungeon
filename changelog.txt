@@ -3,7 +3,6 @@ KSLBestDungeon Changelog
 
 V1.5
 
-
 New:
 
 - Your keystone is marked in the ranking: the dungeon of the key in your bags
