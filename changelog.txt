@@ -3,3 +3,15 @@ KSLBestDungeon Changelog
 
 V1.5
 
+
+New:
+
+- Your keystone is marked in the ranking: the dungeon of the key in your bags
+  shows a keystone icon with its level under the rank, and the row is
+  lightly highlighted, so you can see at a glance whether it is a good loot
+  key.
+- Each dungeon shows your season best under its score ("Best +12 | 285
+  rating", or "Not done this season"), so you can weigh loot against rating
+  when choosing a key. The row tooltip has both too.
+- Both are for the character you are logged in on, so they show only when
+  KeystoneLoot is showing that character, not one of your alts.

@@ -792,7 +792,7 @@ local TEXT_WIDTH = 140;
 local ICONS_LEFT = TEXT_LEFT + TEXT_WIDTH + 8;
 local ICONS_RIGHT_MARGIN = 8;
 local ROW_PADDING = 8;
-local MIN_ROW_HEIGHT = 70;
+local MIN_ROW_HEIGHT = 76; -- four text lines: name, score, tiers, season best
 local ICON_SIZE = 34; -- KeystoneLootLootIconButtonTemplate is 34x34
 local ICON_SPACING = 2;
 local ICON_LINE_SPACING = 4;
@@ -820,6 +820,21 @@ function KSLBestDungeonEntryMixin:OnLoad()
 
     self.TierText = CreateColumnText(self, "GameFontNormalSmall", -42);
     self.TierText:SetTextColor(0.7, 0.7, 0.7);
+
+    -- Your own Mythic+ state on this dungeon (Addon:IsRankingSelf only): the
+    -- season best as a fourth line, and your keystone in the rank column with
+    -- a faint row highlight, so the key you hold stands out in the ranking.
+    self.BestText = CreateColumnText(self, "GameFontNormalSmall", -58);
+    self.BestText:SetTextColor(0.55, 0.8, 1);
+
+    self.KeyText = self:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall");
+    self.KeyText:SetPoint("TOPLEFT", self.RankText, "BOTTOMLEFT", 0, -4);
+    self.KeyText:SetTextColor(0.31, 0.88, 0.36);
+
+    self.KeyHighlight = self:CreateTexture(nil, "BACKGROUND", nil, 1);
+    self.KeyHighlight:SetAllPoints();
+    self.KeyHighlight:SetColorTexture(0.31, 0.88, 0.36, 0.08);
+    self.KeyHighlight:Hide();
 
     self.IconContainer = CreateFrame("Frame", nil, self);
     self.IconContainer:SetPoint("TOPLEFT", ICONS_LEFT, -ROW_PADDING);
@@ -861,6 +876,21 @@ function KSLBestDungeonEntryMixin:OnLoad()
         end
         GameTooltip:AddDoubleLine("Score", string.format("%.0f", data.stats.score), 1, 1, 1, 1, 1, 1);
 
+        -- Your own state here, when this list is for you (see Init).
+        if (row.ownKeyLevel or row.seasonBest) then
+            GameTooltip:AddLine(" ");
+            if (row.ownKeyLevel) then
+                GameTooltip:AddLine(string.format("Your keystone: +%d", row.ownKeyLevel), 0.31, 0.88, 0.36);
+            end
+            local best = row.seasonBest;
+            if (best) then
+                GameTooltip:AddLine(string.format("Season best: +%d%s%s", best.level,
+                    best.timed and " (timed)" or " (over time)",
+                    (best.rating and best.rating > 0) and string.format(", %d rating", best.rating) or ""),
+                    0.55, 0.8, 1);
+            end
+        end
+
         -- Names only. Hover an icon for the full tooltip at the selected item level.
         GameTooltip:AddLine(" ");
         for _, item in ipairs(data.items) do
@@ -898,6 +928,29 @@ function KSLBestDungeonEntryMixin:Init(rank, dungeonData, rowWidth)
         end
     end
     self.TierText:SetText(table.concat(tierParts, "   "));
+
+    -- Your key and season best, only when this ranking is the logged-in
+    -- character's own (an alt's list must not claim your key).
+    self.ownKeyLevel, self.seasonBest = nil, nil;
+    local id = dungeonData.dungeon.challengeModeId;
+    if (Addon:IsRankingSelf()) then
+        local keyMap, keyLevel = Addon:GetOwnKeystone();
+        if (keyMap == id and keyLevel) then self.ownKeyLevel = keyLevel; end
+        self.seasonBest = Addon:GetSeasonBest(id);
+    end
+    local keyIcon = C_Item.GetItemIconByID(180653); -- Mythic Keystone
+    self.KeyText:SetText(self.ownKeyLevel
+        and string.format("%s+%d", keyIcon and ("|T" .. keyIcon .. ":14|t") or "", self.ownKeyLevel) or "");
+    self.KeyHighlight:SetShown(self.ownKeyLevel ~= nil);
+    local best = self.seasonBest;
+    if (best) then
+        self.BestText:SetText(string.format("Best +%d%s", best.level,
+            (best.rating and best.rating > 0) and string.format("  |  %d rating", best.rating) or ""));
+    elseif (Addon:IsRankingSelf()) then
+        self.BestText:SetText("Not done this season");
+    else
+        self.BestText:SetText("");
+    end
 
     -- Item icons, wrapped onto as many lines as they need.
     local container = self.IconContainer;

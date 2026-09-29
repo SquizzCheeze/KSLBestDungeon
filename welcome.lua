@@ -24,6 +24,9 @@ if (not Addon) then return; end
 -- ADD AN ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update note, just without bullets.
 local RELEASE_NOTES = {
+    ["1.5"] = {
+        "Your keystone is marked in the ranking, and each dungeon shows your season best and rating, so you can pick a key that is good for both loot and score.",
+    },
     ["1.4"] = {
         "The Best Dungeons tab has a toolbar: Sort, All specs, Weight by tier and Min items are right there instead of hidden in an unlabelled menu. Hover any of them for what it does.",
         "The top line says whose favorites are being ranked, and for which specs.",

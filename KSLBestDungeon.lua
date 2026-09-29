@@ -300,8 +300,51 @@ end
 function Addon:GetFilterStateKey()
     local characterKey = KeystoneLootCharDB and KeystoneLootCharDB.ui and KeystoneLootCharDB.ui.selectedCharacterKey;
     local classId, specId = GetCurrentCharacterInfo();
-    return string.format("%s:%s:%s:%s:%s", tostring(characterKey), tostring(classId), tostring(specId),
-        tostring(GetSetting("showAllSpecs")), GetSlotFilterStateKey());
+    -- The owned key too, so the "Your key" line follows a key that changes
+    -- (a run, a reroll) while the tab is open.
+    local keyMap, keyLevel = self:GetOwnKeystone();
+    return string.format("%s:%s:%s:%s:%s:%s:%s", tostring(characterKey), tostring(classId), tostring(specId),
+        tostring(GetSetting("showAllSpecs")), GetSlotFilterStateKey(), tostring(keyMap), tostring(keyLevel));
+end
+
+-- ============================================================
+-- The logged-in character's own Mythic+ state
+--
+-- The keystone and season bests belong to the character you are LOGGED IN on,
+-- while the ranking can be for any alt picked in KSL. Both are shown only
+-- when those are the same character, so an alt's list never claims your key.
+-- KSL's key format, rebuilt exactly (modules/character.lua, Character:GetKey):
+-- "<GetRealmName()>-<UnitName>-<classId>".
+-- ============================================================
+function Addon:IsRankingSelf()
+    local selected = KeystoneLootCharDB and KeystoneLootCharDB.ui and KeystoneLootCharDB.ui.selectedCharacterKey;
+    local _, _, classId = UnitClass("player");
+    local mine = string.format("%s-%s-%d", GetRealmName() or "", UnitName("player") or "", classId or 0);
+    -- KSL with no selection shows the logged-in character.
+    return selected == nil or selected == mine;
+end
+
+-- challengeMapID, level of the key in your bags, or nil.
+function Addon:GetOwnKeystone()
+    if not (C_MythicPlus and C_MythicPlus.GetOwnedKeystoneChallengeMapID) then return nil; end
+    local mapID = C_MythicPlus.GetOwnedKeystoneChallengeMapID();
+    local level = C_MythicPlus.GetOwnedKeystoneLevel and C_MythicPlus.GetOwnedKeystoneLevel();
+    if not mapID or mapID == 0 then return nil; end
+    return mapID, level;
+end
+
+-- This season's best on a dungeon: { level, timed, rating } or nil.
+function Addon:GetSeasonBest(challengeModeId)
+    if not (C_MythicPlus and C_MythicPlus.GetSeasonBestForMap) then return nil; end
+    local inTime, overTime = C_MythicPlus.GetSeasonBestForMap(challengeModeId);
+    local best = inTime or overTime;
+    if not best then return nil; end
+    local rating;
+    if C_MythicPlus.GetSeasonBestAffixScoreInfoForMap then
+        local _, overall = C_MythicPlus.GetSeasonBestAffixScoreInfoForMap(challengeModeId);
+        rating = overall;
+    end
+    return { level = best.level, timed = inTime ~= nil, rating = rating };
 end
 
 -- Get all favorites for the current character/spec across all dungeons
