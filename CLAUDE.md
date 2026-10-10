@@ -55,6 +55,10 @@ silently ignored; `EditBox:Insert` raises "Call is illegal when disabled by secu
 `CopyToClipboard("+14")` returns nil and the player's Ctrl+V pasted their OLD clipboard. Do not retry. Keys are challenge-mode map IDs; the form wants activity IDs;
 both carry the instance map ID (`GetMapUIInfo` 6th return, `GroupFinderActivityInfo.mapID`).
 Listing a key you do not hold needs the authenticator (Blizzard's `mythicPlusDisableActivity`).
+Playstyle: the panel's dropdown sets `settings.lfgPlaystyle` (Enum.LFGEntryGeneralPlaystyle, default 2 =
+Relaxed, 0 = don't set; nil on pre-1.6 saves, read as Relaxed) and `ApplyPlaystyle` fills it via
+`LFGListEntryCreation_OnPlayStyleSelectedInternal` -- on form show only when the form's playstyle is
+empty, immediately (forced) when chosen in our dropdown.
 
 ## Releasing
 

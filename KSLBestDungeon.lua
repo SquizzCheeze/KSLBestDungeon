@@ -56,6 +56,9 @@ local DEFAULT_SETTINGS = {
     weightByTier = true,
     sortBy = "score", -- "score", "count", "bis", "name"
     showAllSpecs = true,
+    -- Group Keys panel: the playstyle filled into Blizzard's Create Group form
+    -- (Enum.LFGEntryGeneralPlaystyle; 2 = Relaxed, 0 = leave it alone).
+    lfgPlaystyle = 2,
 };
 
 local function GetSettings()

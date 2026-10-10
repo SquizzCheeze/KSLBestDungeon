@@ -70,6 +70,37 @@ end
 
 local panel;
 
+-- ------------------------------------------------------------------
+-- Playstyle (user request 2026-10-10). The form refuses to list without one
+-- ("Select Playstyle (required)"), so the panel fills it from a remembered
+-- choice, Relaxed by default. Set through the function Blizzard's own
+-- dropdown calls (LFGListEntryCreation_OnPlayStyleSelectedInternal) -- the
+-- value lands in the listing data like the dungeon does, which lists fine
+-- from an addon (unlike the title box, which is locked).
+-- ------------------------------------------------------------------
+local PLAYSTYLE_OFF = 0;
+local function SavedPlaystyle()
+    local s = Addon:GetSetting("lfgPlaystyle");
+    if s == nil then s = Enum.LFGEntryGeneralPlaystyle.FunRelaxed; end   -- saves from before V1.6
+    return s;
+end
+
+-- `force`: the player just chose it in our dropdown, so it replaces whatever
+-- the form has. Otherwise only an EMPTY playstyle is filled, never one the
+-- player picked in Blizzard's own dropdown.
+local function ApplyPlaystyle(form, force)
+    if not form or LFGListEntryCreation_IsEditMode(form) then return; end
+    local style = SavedPlaystyle();
+    if style == PLAYSTYLE_OFF then return; end
+    ---@diagnostic disable-next-line: undefined-field
+    local current = form.generalPlaystyle;
+    if not force and current and current ~= Enum.LFGEntryGeneralPlaystyle.None then return; end
+    LFGListEntryCreation_OnPlayStyleSelectedInternal(form, style);
+    if form.PlayStyleDropdown and form.PlayStyleDropdown.GenerateMenu then
+        pcall(form.PlayStyleDropdown.GenerateMenu, form.PlayStyleDropdown);   -- refresh its label
+    end
+end
+
 -- Set Blizzard's form to a key's dungeon (the title is the player's; see below).
 local function ChooseKey(form, key)
     local _, _, _, _, _, instanceMapID = C_ChallengeMode.GetMapUIInfo(key.mapID);
@@ -145,7 +176,7 @@ local function Refresh()
         if not row then
             row = CreateFrame("Button", nil, panel);
             row:SetSize(PANEL_WIDTH - 16, ROW_HEIGHT);
-            row:SetPoint("TOPLEFT", panel, "TOPLEFT", 8, -28 - (i - 1) * ROW_HEIGHT);
+            row:SetPoint("TOPLEFT", panel, "TOPLEFT", 8, -60 - (i - 1) * ROW_HEIGHT);
             row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD");
             row.level = row:CreateFontString(nil, "OVERLAY", "GameFontNormal");
             row.level:SetPoint("RIGHT", row, "RIGHT", -2, 0);
@@ -187,7 +218,7 @@ local function Refresh()
         panel.hintActivity = nil;
         panel.hint:SetText("");
     end
-    panel.listHeight = 36 + #keys * ROW_HEIGHT;
+    panel.listHeight = 68 + #keys * ROW_HEIGHT;
     panel:SetHeight(panel.listHeight + (panel.hint:GetText() ~= "" and 18 or 0));
     panel:Show();
 end
@@ -210,6 +241,29 @@ local function CreatePanel()
     panel.title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal");
     panel.title:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -8);
     panel.title:SetText("|cff9d5db8" .. L["Group Keys"] .. "|r");
+
+    -- Playstyle: Blizzard's own modern dropdown template, with the same four
+    -- choices its form offers plus "Don't set". The choice is remembered and
+    -- is what gets filled in each time the form opens.
+    local styleLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall");
+    styleLabel:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -30);
+    styleLabel:SetText(L["Playstyle"]);
+    local style = CreateFrame("DropdownButton", nil, panel, "WowStyle1DropdownTemplate");
+    style:SetPoint("LEFT", styleLabel, "RIGHT", 8, 0);
+    style:SetPoint("RIGHT", panel, "RIGHT", -10, 0);
+    local G = Enum.LFGEntryGeneralPlaystyle;
+    style:SetupMenu(function(_, root)
+        local function IsSelected(v) return SavedPlaystyle() == v; end
+        local function SetSelected(v)
+            Addon:SetSetting("lfgPlaystyle", v);
+            ApplyPlaystyle(form, true);
+        end
+        for _, v in ipairs({ G.Learning, G.FunRelaxed, G.FunSerious, G.Expert }) do
+            root:CreateRadio(GetGeneralPlaystyleString(v), IsSelected, SetSelected, v);
+        end
+        root:CreateRadio(L["Don't set"], IsSelected, SetSelected, PLAYSTYLE_OFF);
+    end);
+    panel.style = style;
     panel.rows = {};
     -- "Type +N as the title": the one thing the panel cannot do for you.
     panel.hint = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall");
@@ -217,7 +271,7 @@ local function CreatePanel()
     panel.hint:SetPoint("RIGHT", panel, "RIGHT", -10, 0);
     panel.hint:SetJustifyH("LEFT");
     panel.hint:SetText("");
-    panel.listHeight = 36;
+    panel.listHeight = 68;
 
     -- Ask the group as the form opens, and redraw once a second while it is
     -- up, so an answer arriving late shows. Cheap: a handful of rows.
@@ -232,6 +286,10 @@ local function CreatePanel()
     form:HookScript("OnShow", function()
         Addon:RequestGroupKeys();
         Refresh();
+        -- Blizzard may clear the playstyle as it sets the form up, so fill it
+        -- now and again on the next frame (an empty one only, each time).
+        ApplyPlaystyle(form);
+        C_Timer.After(0, function() ApplyPlaystyle(form); end);
     end);
     hooksecurefunc("LFGListEntryCreation_Select", function(f) if f == form then Refresh(); end end);
     Refresh();

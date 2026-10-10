@@ -26,6 +26,7 @@ if (not Addon) then return; end
 local RELEASE_NOTES = {
     ["1.6"] = {
         "Group Keys: open Create Group for a dungeon and a panel beside it lists your key and your groupmates' keys. Click one to switch the form to that dungeon - no more hunting through the dropdown.",
+        "Group Keys also fills in the Playstyle (Relaxed by default, change it in the panel).",
     },
     ["1.5"] = {
         "Your keystone is marked in the ranking, and each dungeon shows your season best and rating, so you can pick a key that is good for both loot and score.",
