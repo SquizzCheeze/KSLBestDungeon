@@ -19,9 +19,9 @@ local Addon = KSLBestDungeon;
     authenticator can only list a key it holds (LFGList.lua,
     mythicPlusDisableActivity) -- the form says so itself.
 
-    The title: the game builds it (C_LFGList.SetEntryTitle) when the dungeon
-    changes and it carries YOUR key's level. If it starts with "+<level>" the
-    level is swapped for the chosen key's; otherwise it is left alone.
+    The title: addons CANNOT write it (securityDisableSetText on the box), and
+    the game fills it (C_LFGList.SetEntryTitle) with YOUR key's level only.
+    For another player's key the panel focuses the box and says what to type.
 
     Keys arrive by challenge-mode map ID; the form wants a group-finder
     activity. Both carry the instance map ID (GetMapUIInfo's 6th return,
@@ -68,7 +68,9 @@ local function KnownKeys()
     return keys;
 end
 
--- Set Blizzard's form to a key's dungeon, and its title to that key's level.
+local panel;
+
+-- Set Blizzard's form to a key's dungeon (the title is the player's; see below).
 local function ChooseKey(form, key)
     local _, _, _, _, _, instanceMapID = C_ChallengeMode.GetMapUIInfo(key.mapID);
     local act = instanceMapID and MythicPlusActivities()[instanceMapID];
@@ -81,30 +83,23 @@ local function ChooseKey(form, key)
     ---@diagnostic disable-next-line: undefined-field
     LFGListEntryCreation_Select(form, form.selectedFilters, info and info.categoryID, act.groupID, act.activityID);
 
-    -- The title. The game writes "+<level>" only for a key YOU hold; for any
-    -- other it writes no level, and it may write after this returns -- only
-    -- your own key's level ever showed (user report 2026-10-10). So set it
-    -- now and again a moment later: swap a leading "+N", fill an empty title,
-    -- or put the level in front of whatever else is there.
-    local function ApplyTitle()
-        local box = form.Name;
-        if not (box and box:IsVisible()) then return; end
-        local level = "+" .. key.level;
-        local title = box:GetText() or "";
-        if title:match("^%+%d+") then
-            title = title:gsub("^%+%d+", level, 1);
-        elseif strtrim(title) == "" then
-            title = level;
-        else
-            title = level .. " " .. title;
-        end
-        box:SetText(title);
+    -- The title CANNOT be set by an addon: Blizzard declares the box with
+    -- securityDisableSetText="true" (LFGList.xml, LFGListCreationName), so
+    -- SetText from addon code is silently ignored -- found 2026-10-10 after
+    -- two attempts showed a blank title. The game fills it itself
+    -- (C_LFGList.SetEntryTitle) with YOUR key's level only. So for anyone
+    -- else's key: put the cursor in the box, if the game allows that, and
+    -- tell the player what to type.
+    panel.hintActivity = act.activityID;
+    if key.own then
+        panel.hint:SetText("");
+    else
+        panel.hint:SetText(("Type |cffffffff+%d|r as the title"):format(key.level));
+        if form.Name and form.Name.SetFocus then pcall(form.Name.SetFocus, form.Name); end
     end
-    ApplyTitle();
-    C_Timer.After(0.1, ApplyTitle);
+    panel:SetHeight(panel.listHeight + (panel.hint:GetText() ~= "" and 18 or 0));
 end
 
-local panel;
 
 -- Where the panel docks: to the right of the Group Finder window, or, when
 -- Raider.IO's profile panel is showing there (it docks on that same edge,
@@ -185,7 +180,15 @@ local function Refresh()
         row:Show();
     end
     for i = #keys + 1, #panel.rows do panel.rows[i]:Hide(); end
-    panel:SetHeight(36 + #keys * ROW_HEIGHT);
+    -- The title reminder belongs to the dungeon it was given for; picked
+    -- something else from Blizzard's dropdown since, it goes.
+    ---@diagnostic disable-next-line: undefined-field
+    if panel.hintActivity and form.selectedActivity ~= panel.hintActivity then
+        panel.hintActivity = nil;
+        panel.hint:SetText("");
+    end
+    panel.listHeight = 36 + #keys * ROW_HEIGHT;
+    panel:SetHeight(panel.listHeight + (panel.hint:GetText() ~= "" and 18 or 0));
     panel:Show();
 end
 
@@ -208,6 +211,13 @@ local function CreatePanel()
     panel.title:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -8);
     panel.title:SetText("|cff9d5db8" .. L["Group Keys"] .. "|r");
     panel.rows = {};
+    -- "Type +N as the title": the one thing the panel cannot do for you.
+    panel.hint = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall");
+    panel.hint:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 10, 8);
+    panel.hint:SetPoint("RIGHT", panel, "RIGHT", -10, 0);
+    panel.hint:SetJustifyH("LEFT");
+    panel.hint:SetText("");
+    panel.listHeight = 36;
 
     -- Ask the group as the form opens, and redraw once a second while it is
     -- up, so an answer arriving late shows. Cheap: a handful of rows.

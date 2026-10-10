@@ -25,7 +25,7 @@ if (not Addon) then return; end
 -- A version with no entry still shows the update note, just without bullets.
 local RELEASE_NOTES = {
     ["1.6"] = {
-        "Group Keys: open Create Group for a dungeon and a panel beside it lists your key and your groupmates' keys. Click one to list it - no more hunting through the dropdown.",
+        "Group Keys: open Create Group for a dungeon and a panel beside it lists your key and your groupmates' keys. Click one to switch the form to that dungeon - no more hunting through the dropdown.",
     },
     ["1.5"] = {
         "Your keystone is marked in the ranking, and each dungeon shows your season best and rating, so you can pick a key that is good for both loot and score.",

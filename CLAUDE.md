@@ -46,8 +46,10 @@ Docks right of the Group Finder window, or right of Raider.IO's `RaiderIO_Profil
 (`Dock()`, re-checked each refresh; not the left -- the Group Finder opens at the screen edge) beside
 Blizzard's Create Group form (Dungeons only, not while editing a live listing) and lists
 your key plus the group's (`GetGroupKeys`, LibKeystone answers). A click calls
-`LFGListEntryCreation_Select` -- the form's own dropdown path -- and swaps a leading `+<level>` in the
-game-built title for the chosen key's. Keys are challenge-mode map IDs; the form wants activity IDs;
+`LFGListEntryCreation_Select` -- the form's own dropdown path. ⚠ The TITLE cannot be set: its EditBox is
+declared `securityDisableSetText="true"` (LFGList.xml), so addon SetText is silently ignored, and the
+game's `C_LFGList.SetEntryTitle` only ever writes YOUR key's level. For another key the panel focuses the
+box and shows "Type +N as the title" (`panel.hint`). Keys are challenge-mode map IDs; the form wants activity IDs;
 both carry the instance map ID (`GetMapUIInfo` 6th return, `GroupFinderActivityInfo.mapID`).
 Listing a key you do not hold needs the authenticator (Blizzard's `mythicPlusDisableActivity`).
 

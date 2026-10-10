@@ -8,7 +8,9 @@ V1.6
   Raider.IO's profile panel when that is showing), listing your
   keystone and every groupmate's key that their addons share (BigWigs,
   Details, EllesmereUI and others that speak LibKeystone). Click one and
-  the form switches to that dungeon, with its key level in the title, ready
-  to list - no more hunting through the dropdown for a groupmate's key.
+  the form switches to that dungeon - no more hunting through the dropdown
+  for a groupmate's key. Blizzard does not let addons write the title, so
+  for a groupmate's key the panel puts your cursor there and shows the
+  level to type (your own key's title fills itself, as before).
   Listing a key you do not hold needs the Blizzard Authenticator on your
   account; that is Blizzard's own rule, and the form says so.
