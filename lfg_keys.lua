@@ -258,8 +258,17 @@ local function CreatePanel()
             Addon:SetSetting("lfgPlaystyle", v);
             ApplyPlaystyle(form, true);
         end
+        -- Blizzard's names for them. Its GetGeneralPlaystyleString is LOCAL to
+        -- LFGList.lua (calling it was a nil-call error, 2026-10-10); these are
+        -- the global strings it returns, so they localise the same way.
+        local names = {
+            [G.Learning] = GROUP_FINDER_GENERAL_PLAYSTYLE1 or "Learning",
+            [G.FunRelaxed] = GROUP_FINDER_GENERAL_PLAYSTYLE2 or "Relaxed",
+            [G.FunSerious] = GROUP_FINDER_GENERAL_PLAYSTYLE3 or "Competitive",
+            [G.Expert] = GROUP_FINDER_GENERAL_PLAYSTYLE4 or "Carry Offered",
+        };
         for _, v in ipairs({ G.Learning, G.FunRelaxed, G.FunSerious, G.Expert }) do
-            root:CreateRadio(GetGeneralPlaystyleString(v), IsSelected, SetSelected, v);
+            root:CreateRadio(names[v], IsSelected, SetSelected, v);
         end
         root:CreateRadio(L["Don't set"], IsSelected, SetSelected, PLAYSTYLE_OFF);
     end);
