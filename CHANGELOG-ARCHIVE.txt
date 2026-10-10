@@ -8,6 +8,24 @@ history as its release notes. Older sections move here instead of being
 deleted: many carry root-cause writeups worth grepping before assuming a bug
 is fresh. This file is in the .pkgmeta ignore list, so it never ships.
 
+V1.6 - 2026-10-10
+
+- Group Keys: opening Blizzard's Create Group form for a dungeon now shows
+  a small Group Keys panel beside the Group Finder window (next to
+  Raider.IO's profile panel when that is showing), listing your
+  keystone and every groupmate's key that their addons share (BigWigs,
+  Details, EllesmereUI and others that speak LibKeystone). Click one and
+  the form switches to that dungeon - no more hunting through the dropdown
+  for a groupmate's key. Blizzard does not let addons write the title, so
+  for a groupmate's key the panel puts your cursor there and shows the
+  level to type (your own key's title fills itself, as before).
+  Listing a key you do not hold needs the Blizzard Authenticator on your
+  account; that is Blizzard's own rule, and the form says so.
+- Group Keys also fills in the form's required Playstyle for you: Relaxed
+  by default, or whichever you choose from the Playstyle dropdown at the
+  top of the panel (it remembers your choice; "Don't set" turns it off).
+  It only fills an empty playstyle, never one you picked yourself.
+
 V1.5 - 2026-09-29
 
 New:
