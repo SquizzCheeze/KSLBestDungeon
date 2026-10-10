@@ -150,10 +150,11 @@ local function CreatePanel()
     local form = LFGListFrame and LFGListFrame.EntryCreation;
     if panel or not form then return; end
     -- A child of the form, so it shows and hides with it; drawn outside the
-    -- Group Finder window, along its right edge.
+    -- Group Finder window, along its LEFT edge. The right edge is taken:
+    -- Raider.IO docks its profile panel there (user screenshot 2026-10-10).
     panel = CreateFrame("Frame", "KSLBestDungeonGroupKeys", form, "BackdropTemplate");
     panel:SetWidth(PANEL_WIDTH);
-    panel:SetPoint("TOPLEFT", PVEFrame, "TOPRIGHT", 4, -24);
+    panel:SetPoint("TOPRIGHT", PVEFrame, "TOPLEFT", -4, -24);
     panel:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
         edgeFile = "Interface\\Buttons\\WHITE8X8",

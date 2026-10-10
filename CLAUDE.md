@@ -42,7 +42,8 @@ Debug slash commands (all in `KSLBestDungeon.lua`):
 
 ## Group Keys panel (`lfg_keys.lua`, V1.6)
 
-Sits beside Blizzard's Create Group form (Dungeons only, not while editing a live listing) and lists
+Sits on the LEFT of the Group Finder window (Raider.IO docks its profile panel on the right) beside
+Blizzard's Create Group form (Dungeons only, not while editing a live listing) and lists
 your key plus the group's (`GetGroupKeys`, LibKeystone answers). A click calls
 `LFGListEntryCreation_Select` -- the form's own dropdown path -- and swaps a leading `+<level>` in the
 game-built title for the chosen key's. Keys are challenge-mode map IDs; the form wants activity IDs;
