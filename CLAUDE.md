@@ -49,7 +49,10 @@ your key plus the group's (`GetGroupKeys`, LibKeystone answers). A click calls
 `LFGListEntryCreation_Select` -- the form's own dropdown path. ⚠ The TITLE cannot be set: its EditBox is
 declared `securityDisableSetText="true"` (LFGList.xml), so addon SetText is silently ignored, and the
 game's `C_LFGList.SetEntryTitle` only ever writes YOUR key's level. For another key the panel focuses the
-box and shows "Type +N as the title" (`panel.hint`). Keys are challenge-mode map IDs; the form wants activity IDs;
+box and shows "Type +N as the title" (`panel.hint`). Every way round the lock was tried in game
+(2026-10-10, from a key press, with a since-removed `/kslbd titletest` probe) and is closed: `SetText`
+silently ignored; `EditBox:Insert` raises "Call is illegal when disabled by security settings";
+`CopyToClipboard("+14")` returns nil and the player's Ctrl+V pasted their OLD clipboard. Do not retry. Keys are challenge-mode map IDs; the form wants activity IDs;
 both carry the instance map ID (`GetMapUIInfo` 6th return, `GroupFinderActivityInfo.mapID`).
 Listing a key you do not hold needs the authenticator (Blizzard's `mythicPlusDisableActivity`).
 
