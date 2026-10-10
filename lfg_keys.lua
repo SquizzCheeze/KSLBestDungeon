@@ -80,10 +80,28 @@ local function ChooseKey(form, key)
     -- selectedFilters is Blizzard's runtime field on the form; nil is fine.
     ---@diagnostic disable-next-line: undefined-field
     LFGListEntryCreation_Select(form, form.selectedFilters, info and info.categoryID, act.groupID, act.activityID);
-    local title = form.Name and form.Name:GetText();
-    if title and title:match("^%+%d+") then
-        form.Name:SetText((title:gsub("^%+%d+", "+" .. key.level, 1)));
+
+    -- The title. The game writes "+<level>" only for a key YOU hold; for any
+    -- other it writes no level, and it may write after this returns -- only
+    -- your own key's level ever showed (user report 2026-10-10). So set it
+    -- now and again a moment later: swap a leading "+N", fill an empty title,
+    -- or put the level in front of whatever else is there.
+    local function ApplyTitle()
+        local box = form.Name;
+        if not (box and box:IsVisible()) then return; end
+        local level = "+" .. key.level;
+        local title = box:GetText() or "";
+        if title:match("^%+%d+") then
+            title = title:gsub("^%+%d+", level, 1);
+        elseif strtrim(title) == "" then
+            title = level;
+        else
+            title = level .. " " .. title;
+        end
+        box:SetText(title);
     end
+    ApplyTitle();
+    C_Timer.After(0.1, ApplyTitle);
 end
 
 local panel;
