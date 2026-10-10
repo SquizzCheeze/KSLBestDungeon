@@ -3,7 +3,6 @@ KSLBestDungeon Changelog
 
 V1.6
 
-
 - Group Keys: opening Blizzard's Create Group form for a dungeon now shows
   a small Group Keys panel beside the Group Finder window, listing your
   keystone and every groupmate's key that their addons share (BigWigs,
