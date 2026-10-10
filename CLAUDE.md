@@ -35,10 +35,6 @@ Debug slash commands (all in `KSLBestDungeon.lua`):
 - `/kslbd lfgtest [activityID]` — unlisted probe: lists M+ activities the Create Group form can list, or
   sets the open form to one. Proved (2026-10-10) that an addon choosing the dungeon via
   `LFGListEntryCreation_Select` still lists fine, for your own key and one you do not hold.
-- ⚠ `/kslbd groupkeystest [off]` — **TEMPORARY, REMOVE BEFORE TAGGING V1.6** (user: a solo test that
-  is never released). Fills the Group Keys panel with three made-up groupmates. Two places: the
-  fenced block at the bottom of `lfg_keys.lua` (`Addon:GroupKeysTest`, plus the `fakeKeys` local it
-  sets and `KnownKeys` reads) and the `groupkeystest` branch in the slash handler.
 
 ## Group Keys panel (`lfg_keys.lua`, V1.6)
 

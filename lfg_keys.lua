@@ -47,7 +47,6 @@ end
 
 -- Every key we know: { name, classFile, challengeMapID, level, dungeon, own }.
 -- Yours first, then the group's by name.
-local fakeKeys;   -- set only by the solo test command at the bottom of this file
 local function KnownKeys()
     local keys = {};
     local myMap, myLevel = Addon:GetOwnKeystone();
@@ -56,7 +55,7 @@ local function KnownKeys()
         keys[#keys + 1] = { name = UnitName("player"), classFile = classFile, mapID = myMap, level = myLevel, own = true };
     end
     local others = {};
-    for name, k in pairs(fakeKeys or Addon:GetGroupKeys()) do
+    for name, k in pairs(Addon:GetGroupKeys()) do
         local _, classFile = UnitClass(name);
         others[#others + 1] = { name = name, classFile = k.classFile or classFile, mapID = k.mapID, level = k.level };
     end
@@ -317,30 +316,3 @@ do
     if LFGListFrame and LFGListFrame.EntryCreation then CreatePanel(); end
 end
 
--- ===================================================================
--- TEMPORARY -- REMOVE BEFORE TAGGING V1.6 (user request 2026-10-10:
--- "a test command I can use solo ... that will not be released").
--- /kslbd groupkeystest  : fill the panel with three made-up groupmates
---                         holding random current dungeons, to check the
---                         look and the clicks without a group.
--- /kslbd groupkeystest off : back to the real group's keys.
--- ===================================================================
-function Addon:GroupKeysTest(off)
-    if off then
-        fakeKeys = nil;
-        print("|cff9d5db8KSLBestDungeon|r: group keys test off.");
-    else
-        local maps = C_ChallengeMode.GetMapTable() or {};
-        local classes = { "WARRIOR", "PRIEST", "MAGE", "DRUID", "HUNTER" };
-        fakeKeys = {};
-        for i, name in ipairs({ "Testtank", "Testheals", "Testdps" }) do
-            local mapID = maps[((i * 3) % math.max(#maps, 1)) + 1];
-            if mapID then
-                fakeKeys[name] = { mapID = mapID, level = 8 + i * 2, classFile = classes[i] };
-            end
-        end
-        print("|cff9d5db8KSLBestDungeon|r: group keys test on -- open Group Finder > Dungeons > Start a Group.");
-    end
-    Refresh();
-end
--- ======================= END TEMPORARY ============================

@@ -809,10 +809,6 @@ SlashCmdList.KSLBESTDUNGEON = function(msg)
     elseif (msg == "reset") then
         KSLBestDungeonDB = nil;
         ReloadUI();
-    elseif (msg == "groupkeystest" or msg == "groupkeystest off") then
-        -- TEMPORARY -- REMOVE BEFORE TAGGING V1.6, with Addon:GroupKeysTest
-        -- in lfg_keys.lua. Solo test of the group keys panel.
-        if Addon.GroupKeysTest then Addon:GroupKeysTest(msg == "groupkeystest off"); end
     elseif (msg == "lfgtest" or msg:match("^lfgtest ")) then
         -- Probe, unlisted (2026-10-10): can an addon pick the dungeon in
         -- Blizzard's Create Group form and still list the group? The plan is a
