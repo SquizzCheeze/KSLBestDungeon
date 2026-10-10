@@ -88,6 +88,28 @@ end
 
 local panel;
 
+-- Where the panel docks: to the right of the Group Finder window, or, when
+-- Raider.IO's profile panel is showing there (it docks on that same edge,
+-- user screenshot 2026-10-10), to the right of THAT. Not the left: Blizzard
+-- opens the Group Finder against the left of the screen and does not keep a
+-- moved position, so a left-hand panel was off screen for most players.
+-- Anchored live to whichever edge, so Raider.IO's changing height and width
+-- carry it along.
+local RIO_PANEL = "RaiderIO_ProfileTooltip";
+local function Dock()
+    if not panel then return; end
+    local rio = _G[RIO_PANEL];
+    local onRio = rio and rio:IsShown();
+    if panel._dockedOnRio == onRio and panel:GetNumPoints() > 0 then return; end
+    panel._dockedOnRio = onRio;
+    panel:ClearAllPoints();
+    if onRio then
+        panel:SetPoint("TOPLEFT", rio, "TOPRIGHT", 4, 0);
+    else
+        panel:SetPoint("TOPLEFT", PVEFrame, "TOPRIGHT", 4, -24);
+    end
+end
+
 local function Refresh()
     local form = LFGListFrame and LFGListFrame.EntryCreation;
     if not (panel and form and form:IsVisible()) then return; end
@@ -99,6 +121,9 @@ local function Refresh()
         panel:Hide();
         return;
     end
+    -- Re-docked every pass (once a second while the form is up): Raider.IO's
+    -- panel can appear or go after ours is placed, and is not ours to hook.
+    Dock();
     local keys = KnownKeys();
     if #keys == 0 then panel:Hide(); return; end
 
@@ -149,12 +174,11 @@ end
 local function CreatePanel()
     local form = LFGListFrame and LFGListFrame.EntryCreation;
     if panel or not form then return; end
-    -- A child of the form, so it shows and hides with it; drawn outside the
-    -- Group Finder window, along its LEFT edge. The right edge is taken:
-    -- Raider.IO docks its profile panel there (user screenshot 2026-10-10).
+    -- A child of the form, so it shows and hides with it; docked outside the
+    -- Group Finder window by Dock() above.
     panel = CreateFrame("Frame", "KSLBestDungeonGroupKeys", form, "BackdropTemplate");
     panel:SetWidth(PANEL_WIDTH);
-    panel:SetPoint("TOPRIGHT", PVEFrame, "TOPLEFT", -4, -24);
+    Dock();
     panel:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
         edgeFile = "Interface\\Buttons\\WHITE8X8",
