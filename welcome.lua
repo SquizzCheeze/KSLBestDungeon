@@ -24,6 +24,9 @@ if (not Addon) then return; end
 -- ADD AN ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update note, just without bullets.
 local RELEASE_NOTES = {
+    ["1.6"] = {
+        "Group Keys: open Create Group for a dungeon and a panel beside it lists your key and your groupmates' keys. Click one to list it - no more hunting through the dropdown.",
+    },
     ["1.5"] = {
         "Your keystone is marked in the ranking, and each dungeon shows your season best and rating, so you can pick a key that is good for both loot and score.",
         "In a group, your groupmates' keys are marked too (they need BigWigs, Details or another addon that shares keys), with who holds what in the tooltip.",

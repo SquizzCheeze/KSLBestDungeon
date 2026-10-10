@@ -3,3 +3,12 @@ KSLBestDungeon Changelog
 
 V1.6
 
+
+- Group Keys: opening Blizzard's Create Group form for a dungeon now shows
+  a small Group Keys panel beside the Group Finder window, listing your
+  keystone and every groupmate's key that their addons share (BigWigs,
+  Details, EllesmereUI and others that speak LibKeystone). Click one and
+  the form switches to that dungeon, with its key level in the title, ready
+  to list - no more hunting through the dropdown for a groupmate's key.
+  Listing a key you do not hold needs the Blizzard Authenticator on your
+  account; that is Blizzard's own rule, and the form says so.

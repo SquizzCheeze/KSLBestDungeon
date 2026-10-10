@@ -32,6 +32,22 @@ Debug slash commands (all in `KSLBestDungeon.lua`):
 - `/kslbd debugui` / `/kslbd dropdown` — dumps tab id, frame refs, toolbar visibility, current tab.
 - `/kslbd show` — force-shows the frame, our tab, and the toolbar.
 - `/kslbd reset` — wipes `KSLBestDungeonDB` and reloads.
+- `/kslbd lfgtest [activityID]` — unlisted probe: lists M+ activities the Create Group form can list, or
+  sets the open form to one. Proved (2026-10-10) that an addon choosing the dungeon via
+  `LFGListEntryCreation_Select` still lists fine, for your own key and one you do not hold.
+- ⚠ `/kslbd groupkeystest [off]` — **TEMPORARY, REMOVE BEFORE TAGGING V1.6** (user: a solo test that
+  is never released). Fills the Group Keys panel with three made-up groupmates. Two places: the
+  fenced block at the bottom of `lfg_keys.lua` (`Addon:GroupKeysTest`, plus the `fakeKeys` local it
+  sets and `KnownKeys` reads) and the `groupkeystest` branch in the slash handler.
+
+## Group Keys panel (`lfg_keys.lua`, V1.6)
+
+Sits beside Blizzard's Create Group form (Dungeons only, not while editing a live listing) and lists
+your key plus the group's (`GetGroupKeys`, LibKeystone answers). A click calls
+`LFGListEntryCreation_Select` -- the form's own dropdown path -- and swaps a leading `+<level>` in the
+game-built title for the chosen key's. Keys are challenge-mode map IDs; the form wants activity IDs;
+both carry the instance map ID (`GetMapUIInfo` 6th return, `GroupFinderActivityInfo.mapID`).
+Listing a key you do not hold needs the authenticator (Blizzard's `mythicPlusDisableActivity`).
 
 ## Releasing
 

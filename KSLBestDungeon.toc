@@ -18,5 +18,8 @@ KSLBestDungeon.lua
 # UI mixins
 ui/main_frame.lua
 
+# Group keys beside the Create Group form
+lfg_keys.lua
+
 # First-run greeting and release notes
 welcome.lua
