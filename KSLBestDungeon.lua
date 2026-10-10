@@ -806,6 +806,53 @@ SlashCmdList.KSLBESTDUNGEON = function(msg)
     elseif (msg == "reset") then
         KSLBestDungeonDB = nil;
         ReloadUI();
+    elseif (msg == "lfgtest" or msg:match("^lfgtest ")) then
+        -- Probe, unlisted (2026-10-10): can an addon pick the dungeon in
+        -- Blizzard's Create Group form and still list the group? The plan is a
+        -- party-keys panel beside that form where clicking a member fills in
+        -- their dungeon. Picking calls LFGListEntryCreation_Select -- the
+        -- function the form's own dropdown and its own-keystone prefill call --
+        -- so the form's selection is then a value WE wrote. Listing is
+        -- C_LFGList.CreateListing (HasRestrictions), which may refuse a listing
+        -- built from addon-written state. Only the List Group button can tell.
+        local arg = msg:match("^lfgtest%s+(%d+)");
+        local P = "|cff9d5db8KSLBestDungeon|r ";
+        local ok, err = pcall(function()
+            if not arg then
+                local own = C_LFGList.GetOwnedKeystoneActivityAndGroupAndLevel();
+                print(P .. "Mythic+ dungeons the Create Group form can list (activity ID: name):");
+                local ids = C_LFGList.GetAvailableActivities(GROUP_FINDER_CATEGORY_ID_DUNGEONS) or {};
+                local n = 0;
+                for _, id in ipairs(ids) do
+                    local info = C_LFGList.GetActivityInfoTable(id);
+                    if info and info.isMythicPlusActivity then
+                        n = n + 1;
+                        print(("   %d: %s%s"):format(id, info.fullName or "?", id == own and "  <- your key" or ""));
+                    end
+                end
+                if n == 0 then print("   none found"); end
+                print(P .. "Open Group Finder > Dungeons > Start a Group, then: /kslbd lfgtest <ID>");
+                return;
+            end
+            local ec = LFGListFrame and LFGListFrame.EntryCreation;
+            if not (ec and ec:IsVisible()) then
+                print(P .. "Open the Create Group form first: Group Finder > Dungeons > Start a Group.");
+                return;
+            end
+            local activityID = tonumber(arg);
+            local info = C_LFGList.GetActivityInfoTable(activityID);
+            if not info then print(P .. "No activity " .. arg .. "."); return; end
+            -- selectedFilters is Blizzard's runtime field on the form (the
+            -- stubs do not know it); nil is fine, Select augments it.
+            ---@diagnostic disable-next-line: undefined-field
+            LFGListEntryCreation_Select(ec, ec.selectedFilters, info.categoryID,
+                info.groupFinderActivityGroupID, activityID);
+            print(P .. "Form set to " .. tostring(info.fullName) .. ". Now:");
+            print("   1. Press List Group. Does it list, or say an addon was blocked?");
+            print("   2. If it lists: does the listing show a key level, and whose?");
+            print("   3. Delist when done.");
+        end);
+        if not ok then print(P .. "lfgtest failed: " .. tostring(err)); end
     elseif (msg == "debug") then
         -- Debug favorites data
         if (not KeystoneLootDB or not KeystoneLootCharDB) then
