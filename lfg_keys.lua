@@ -131,6 +131,29 @@ local function ChooseKey(form, key)
 end
 
 
+-- Mythic+ by default (user request 2026-10-12). Picking a DUNGEON in
+-- Blizzard's own dropdown calls LFGListEntryCreation_Select with a group and
+-- no activity, and LFGListUtil_AugmentWithBest then chooses the difficulty by
+-- item level -- usually Mythic or Heroic, not Mythic Keystone. So when the
+-- dungeon changes that way, switch to its Mythic+ activity. A pick from the
+-- DIFFICULTY dropdown passes an activity and is left alone, so a deliberate
+-- Heroic/Mythic choice still sticks; so does our own re-select (it passes one).
+local function ForceMythicPlus(form, groupID, activityID)
+    if activityID or not groupID then return; end
+    ---@diagnostic disable-next-line: undefined-field
+    if form.selectedCategory ~= GROUP_FINDER_CATEGORY_ID_DUNGEONS or LFGListEntryCreation_IsEditMode(form) then return; end
+    ---@diagnostic disable-next-line: undefined-field
+    local current = form.selectedActivity and C_LFGList.GetActivityInfoTable(form.selectedActivity);
+    if current and current.isMythicPlusActivity then return; end
+    for _, act in pairs(MythicPlusActivities()) do
+        if act.groupID == groupID then
+            ---@diagnostic disable-next-line: undefined-field
+            LFGListEntryCreation_Select(form, form.selectedFilters, GROUP_FINDER_CATEGORY_ID_DUNGEONS, act.groupID, act.activityID);
+            return;
+        end
+    end
+end
+
 -- Where the panel docks: to the right of the Group Finder window, or, when
 -- Raider.IO's profile panel is showing there (it docks on that same edge,
 -- user screenshot 2026-10-10), to the right of THAT. Not the left: Blizzard
@@ -299,7 +322,11 @@ local function CreatePanel()
         ApplyPlaystyle(form);
         C_Timer.After(0, function() ApplyPlaystyle(form); end);
     end);
-    hooksecurefunc("LFGListEntryCreation_Select", function(f) if f == form then Refresh(); end end);
+    hooksecurefunc("LFGListEntryCreation_Select", function(f, _, _, groupID, activityID)
+        if f ~= form then return; end
+        ForceMythicPlus(form, groupID, activityID);
+        Refresh();
+    end);
     Refresh();
 end
 

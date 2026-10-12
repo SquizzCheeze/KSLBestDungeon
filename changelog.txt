@@ -3,3 +3,4 @@ KSLBestDungeon Changelog
 
 V1.7
 
+- Group Keys: choosing a dungeon in the Create Group form now selects its Mythic+ (Keystone) difficulty, instead of whatever difficulty the game picked by item level.
