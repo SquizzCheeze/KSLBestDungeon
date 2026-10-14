@@ -81,8 +81,8 @@ Release checklist, in order:
   version being released. Leaving history in it makes every release repost the entire backlog.
 - A version number cannot be re-uploaded to CurseForge. A fix after tagging is a new version.
 
-Released: v1.4 (2026-09-25) was the first release through this pipeline; v1.5 (2026-09-29) is the
-latest, already archived, with `changelog.txt` open at V1.6.
+Released: v1.4 (2026-09-25) was the first release through this pipeline; v1.7 (2026-10-14) is the
+latest, already archived, with `changelog.txt` open at V1.8.
 - What ships is controlled by the `ignore:` list in `.pkgmeta`, not by `.gitignore`. Dev files
   (`CLAUDE.md`, `README.md`, `.vscode`, `.github`, `.claude`, the changelog archive) are excluded there;
   `LICENSE` and `changelog.txt` deliberately are not.
