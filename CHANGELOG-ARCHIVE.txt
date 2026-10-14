@@ -8,6 +8,10 @@ history as its release notes. Older sections move here instead of being
 deleted: many carry root-cause writeups worth grepping before assuming a bug
 is fresh. This file is in the .pkgmeta ignore list, so it never ships.
 
+V1.7 - 2026-10-14
+
+- Group Keys: choosing a dungeon in the Create Group form now selects its Mythic+ (Keystone) difficulty, instead of whatever difficulty the game picked by item level.
+
 V1.6 - 2026-10-10
 
 - Group Keys: opening Blizzard's Create Group form for a dungeon now shows
