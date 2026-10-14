@@ -24,6 +24,9 @@ if (not Addon) then return; end
 -- ADD AN ENTRY AS PART OF RELEASING -- see CLAUDE.md's Releasing section.
 -- A version with no entry still shows the update note, just without bullets.
 local RELEASE_NOTES = {
+    ["1.7"] = {
+        "Create Group: picking a dungeon now selects its Mythic+ difficulty, instead of whatever the game chose from your item level.",
+    },
     ["1.6"] = {
         "Group Keys: open Create Group for a dungeon and a panel beside it lists your key and your groupmates' keys. Click one to switch the form to that dungeon - no more hunting through the dropdown.",
         "Group Keys also fills in the Playstyle (Relaxed by default, change it in the panel).",
