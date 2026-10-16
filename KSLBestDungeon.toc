@@ -1,4 +1,4 @@
-## Interface: 120100, 120105
+## Interface: 120105
 ## Title: |cff9d5db8KSLBestDungeon|r
 ## Notes: Ranks Mythic+ dungeons by your KeystoneLoot favorites for optimal rolling
 ## Author: Squizzcheeze
